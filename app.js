@@ -8,8 +8,8 @@ const firebaseConfig = {
     measurementId: "G-EQ9JV2DCC2"
 };
 const IMGBB_API_KEY = "3052862c887588cf31e3baec2a6eb3f0";
-const TELEFONO_WHATSAPP = "5493725641328";
-const CLAVE_ADMIN = "1234";
+const TELEFONO_WHATSAPP = "5493725401808";
+const CLAVE_ADMIN = "begus2712";
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
