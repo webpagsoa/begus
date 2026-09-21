@@ -36,7 +36,8 @@ body {
 .logo-container {
     position: absolute;
     left: 50%;
-    transform: translateX(-50%); /* Esto lo centra perfectamente en cualquier pantalla */
+    top: 50%;
+    transform: translate(-50%, -50%); /* Lo centra perfecto en horizontal y vertical */
     display: flex;
     align-items: center;
     gap: 10px;
