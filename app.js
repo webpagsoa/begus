@@ -9,7 +9,7 @@ const firebaseConfig = {
 };
 const IMGBB_API_KEY = "3052862c887588cf31e3baec2a6eb3f0";
 const TELEFONO_WHATSAPP = "5493725401808";
-const CLAVE_ADMIN = "begus2712";
+const CLAVE_ADMIN = "2712";
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
