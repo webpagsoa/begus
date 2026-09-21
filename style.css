@@ -34,9 +34,11 @@ body {
 
 /* Sombreado opcional para que el texto resalte mejor sobre la imagen */
 .logo-container {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%); /* Esto lo centra perfectamente en cualquier pantalla */
     display: flex;
     align-items: center;
-    margin: 0 auto; /* Esto es clave para centrarlo horizontalmente */
     gap: 10px;
     background: rgba(0, 0, 0, 0.4);
     padding: 5px 15px;
