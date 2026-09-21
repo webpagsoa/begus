@@ -36,8 +36,9 @@ body {
 .logo-container {
     display: flex;
     align-items: center;
+    margin: 0 auto; /* Esto es clave para centrarlo horizontalmente */
     gap: 10px;
-    background: rgba(0, 0, 0, 0.4); /* Fondo semi-transparente oscuro */
+    background: rgba(0, 0, 0, 0.4);
     padding: 5px 15px;
     border-radius: 8px;
 }
@@ -53,21 +54,22 @@ body {
     font-size: 1.6rem;
     font-weight: 700;
     letter-spacing: 3px;
-    color: #ffffff;
+    color: #ffffff; /* Fuerza el color blanco */
+    margin: 0; /* Elimina el espacio extra que empujaba el botón hacia abajo */
     text-transform: uppercase;
     text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.8);
-    margin: 0;
 }
 
 .btn-admin {
     position: absolute;
     right: 15px;
+    top: 50%;
+    transform: translateY(-50%); /* Mantiene el botón siempre centrado a la derecha */
     background: #333;
     color: #fff;
     border: 1px solid #555;
     padding: 6px 12px;
-    border-radius: 20px;
-    font-size: 0.85rem;
+    border-radius: 4px;
     cursor: pointer;
 }
 
