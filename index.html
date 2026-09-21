@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Begus</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Meta Etiquetas Open Graph para Redes Sociales -->
+    <meta property="og:title" content="Begus - Catálogo Online">
+    <meta property="og:description" content="Explorá nuestros productos y hacé tu pedido por WhatsApp.">
+    <meta property="og:image" content="https://TU_USUARIO.github.io/begus/logo.jpg">
+    <meta property="og:type" content="website">
+</head>
+<body>
+
+   <!-- Encabezado Limpio con Banner -->
+    <header class="navbar">
+        <button id="btn-abrir-admin" class="btn-admin">🔑 Admin</button>
+    </header>
+
+    <!-- Catálogo de Productos -->
+    <main class="container">
+        <!-- Spinner de Carga -->
+        <div id="loading-spinner" class="spinner-container">
+            <div class="spinner"></div>
+            <p>Cargando catálogo...</p>
+        </div>
+
+        <div id="grid-productos" class="product-grid"></div>
+    </main>
+
+    <!-- Botón Flotante del Carrito -->
+    <div id="btn-carrito-flotante" class="cart-floating-btn">
+        🛒 <span id="cart-count">0</span>
+    </div>
+
+    <!-- Modal del Carrito -->
+    <div id="modal-carrito" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Tu Carrito</h2>
+                <button id="btn-cerrar-carrito" class="btn-close">&times;</button>
+            </div>
+            <div id="cart-items" class="cart-items-list"></div>
+            <div class="cart-footer">
+                <p class="cart-total">Total: $<span id="cart-total-price">0</span></p>
+                <button id="btn-enviar-pedido-wa" class="btn-wa-checkout">💬 Enviar Pedido por WhatsApp</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Panel de Administración Lateral -->
+    <div id="panel-admin" class="admin-panel">
+        <div class="panel-header">
+            <h2 id="modal-title">Agregar Producto</h2>
+            <button id="btn-cerrar-admin" class="btn-close">&times;</button>
+        </div>
+        
+        <div class="form-group">
+            <input type="file" id="img-file" accept="image/*" class="file-input">
+            <label for="img-file" class="file-upload-label">📸 Seleccionar foto</label>
+        </div>
+        
+        <div class="form-group">
+            <input type="text" id="input-titulo" placeholder="Título del producto">
+        </div>
+
+        <div class="form-group">
+            <input type="number" id="input-precio" placeholder="Precio ($)">
+        </div>
+
+        <button id="btn-agregar-producto" class="btn-submit">Agregar Producto</button>
+    </div>
+
+    <!-- Firebase y Lógica -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
