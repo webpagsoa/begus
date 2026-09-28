@@ -3,13 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Begus</title>
+    <title>Begus - Catálogo</title>
 
-    <!-- PWA y Manifest (Ref. imagen de archivos) -->
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#ffffff">
+    <meta name="theme-color" content="#1a1a1a">
 
-    <!-- Encabezado de Ciberseguridad CSP (Ref: Manual de Referencia Técnica - A03/XSS) -->
+    <!-- Configuración de Seguridad CSP (Sección 1 - Manual de Referencia Técnica) -->
     <meta http-equiv="Content-Security-Policy" content="
         default-src 'self'; 
         script-src 'self' https://www.gstatic.com; 
@@ -19,48 +18,67 @@
         connect-src 'self' https://*.firebaseio.com https://*.googleapis.com;
     ">
 
-    <!-- Estilo Principal Canónico -->
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
     <!-- Encabezado Principal -->
     <header class="main-header">
-        <div class="logo-container">
-            <h1>Begus</h1>
+        <div class="header-container">
+            <h1 class="brand-logo">Begus</h1>
+            <button id="btn-abrir-admin" class="btn-admin">🔑 Admin</button>
         </div>
-        <button id="btn-abrir-admin" class="btn-primary">🔑 Admin</button>
     </header>
 
-    <!-- Panel de Administración (Inyección de productos) -->
+    <!-- Overlay de Fondo para el Panel Admin -->
+    <div id="admin-overlay" class="admin-overlay"></div>
+
+    <!-- Panel Modal Desplazable de Administración -->
     <aside id="panel-admin" class="panel-admin">
-        <h2>Gestión de Catálogo</h2>
-        <form id="form-producto">
-            <input type="text" id="input-nombre" placeholder="Nombre del producto" required autocomplete="off">
-            <input type="number" id="input-precio" step="0.01" placeholder="Precio ($)" required autocomplete="off">
-            <input type="url" id="input-imagen-url" placeholder="URL de la imagen (Ej: ImgBB / Drive)" required autocomplete="off">
-            <button type="submit" class="btn-success">Guardar Producto</button>
+        <div class="panel-header">
+            <h2>Gestión de Catálogo</h2>
+            <button id="btn-cerrar-panel" class="btn-close">&times;</button>
+        </div>
+        <form id="form-producto" class="admin-form">
+            <div class="form-group">
+                <label for="input-nombre">Nombre del Producto</label>
+                <input type="text" id="input-nombre" placeholder="Ej: Tapado Lora" required autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label for="input-precio">Precio ($)</label>
+                <input type="number" id="input-precio" step="0.01" placeholder="Ej: 15000" required autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label for="input-imagen-url">URL de Imagen</label>
+                <input type="url" id="input-imagen-url" placeholder="https://..." required autocomplete="off">
+            </div>
+            <button type="submit" class="btn-submit">Guardar Producto</button>
         </form>
     </aside>
 
-    <!-- Grilla Dinámica del Catálogo -->
-    <main class="container">
-        <section id="catalogo-productos" class="catalogo-grid">
-            <!-- Renderizado dinámico desde app.js -->
+    <!-- Contenedor Principal / Hero & Catálogo -->
+    <main class="main-content">
+        <section class="hero-section">
+            <div class="hero-overlay"></div>
+            <div class="hero-title-container">
+                <h2 class="hero-title">Begus</h2>
+            </div>
+        </section>
+
+        <section class="container">
+            <div id="catalogo-productos" class="catalogo-grid">
+                <!-- Productos renderizados dinámicamente -->
+            </div>
         </section>
     </main>
 
-    <!-- Registro del Service Worker para PWA -->
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('sw.js')
-                    .catch(err => console.error('Error al registrar SW:', err));
+                navigator.serviceWorker.register('sw.js').catch(console.error);
             });
         }
     </script>
-
-    <!-- Módulo JS Principal Canónico -->
     <script type="module" src="app.js"></script>
 </body>
 </html>
