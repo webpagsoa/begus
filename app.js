@@ -255,6 +255,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnCerrarCarrito = document.getElementById('btn-cerrar-carrito');
     const modalCarrito = document.getElementById('modal-carrito');
     const btnEnviarWA = document.getElementById('btn-enviar-pedido-wa');
+    const btnCerrarSesion = document.getElementById('btn-cerrar-sesion');
 
     btnAbrirAdmin?.addEventListener('click', solicitarAccesoAdmin);
     btnCerrarAdmin?.addEventListener('click', () => panelAdmin?.classList.remove('open'));
@@ -262,6 +263,15 @@ document.addEventListener('DOMContentLoaded', () => {
     btnCarrito?.addEventListener('click', () => modalCarrito?.classList.add('open'));
     btnCerrarCarrito?.addEventListener('click', () => modalCarrito?.classList.remove('open'));
     btnEnviarWA?.addEventListener('click', enviarPedidoWhatsApp);
+
+    // Evento para cerrar la sesión de administrador
+    btnCerrarSesion?.addEventListener('click', () => {
+        auth.signOut().then(() => {
+            alert("Sesión de administrador cerrada exitosamente.");
+        }).catch((error) => {
+            console.error("Error al cerrar sesión:", error);
+        });
+    });
 
     inputImagen?.addEventListener('change', (e) => {
         const file = e.target.files[0];
