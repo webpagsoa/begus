@@ -1,331 +1,150 @@
+/**
+ * Módulo de Control de Administración y Catálogo - Begus Web App
+ * Cumplimiento: OWASP A01, A03, A07 (Security by Design)
+ * Sin dependencias de pago / 100% Free Tier (GitHub Pages + Firebase Auth + Firestore)
+ */
+
+// 1. Configuración Pública de Firebase
 const firebaseConfig = {
     apiKey: "AIzaSyDnl23nvPG7hoMV0fE2NYJR7dWY-msEIcI",
     authDomain: "begus-4a593.firebaseapp.com",
     projectId: "begus-4a593",
     storageBucket: "begus-4a593.firebasestorage.app",
     messagingSenderId: "171755943273",
-    appId: "1:171755943273:web:0a5fadb6978614eaeaf9f8",
+    appId: "1:171755943273:web:0a5fadb6978614eacaf9f8",
     measurementId: "G-EQ9JV2DCC2"
 };
-const IMGBB_API_KEY = "3052862c887588cf31e3baec2a6eb3f0";
-const TELEFONO_WHATSAPP = "5493725641328";
 
-// [SEGURIDAD]: Eliminada la constante CLAVE_ADMIN expuesta en el cliente.
-const ADMIN_EMAIL = "5493725401808@begus.internal"; 
-
+// Inicialización de Firebase
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
-const auth = firebase.auth(); // Instancia de Firebase Auth
+const auth = firebase.auth();
+
+// Identificador del Admin en Firebase Auth
+const ADMIN_EMAIL = "5493725401808@begus.internal";
+
+// API Key de ImgBB para cargas directas desde el navegador (Gratuito)
+const IMGBB_API_KEY = "3052862c887588cf31c3baec2a6eb3f0";
 
 let esAdmin = false;
-let productoEditandoId = null;
-let carrito = [];
 
-// DOM Elements
+// Referencias al DOM
 const btnAbrirAdmin = document.getElementById('btn-abrir-admin');
 const btnCerrarAdmin = document.getElementById('btn-cerrar-admin');
 const panelAdmin = document.getElementById('panel-admin');
-const btnAgregar = document.getElementById('btn-agregar-producto');
-const inputImagen = document.getElementById('img-file');
-const inputTitulo = document.getElementById('input-titulo');
-const inputPrecio = document.getElementById('input-precio');
-const labelImagen = document.querySelector('.file-upload-label');
-const gridProductos = document.getElementById('grid-productos');
-const loadingSpinner = document.getElementById('loading-spinner');
+const formProducto = document.getElementById('form-producto');
 
-// Carrito Elements
-const btnCarritoFlotante = document.getElementById('btn-carrito-flotante');
-const modalCarrito = document.getElementById('modal-carrito');
-const btnCerrarCarrito = document.getElementById('btn-cerrar-carrito');
-const cartItemsContainer = document.getElementById('cart-items');
-const cartCountSpan = document.getElementById('cart-count');
-const cartTotalPriceSpan = document.getElementById('cart-total-price');
-const btnEnviarPedidoWA = document.getElementById('btn-enviar-pedido-wa');
-
-// [SEGURIDAD] Función para sanitizar inputs y prevenir vulnerabilidades XSS (OWASP A03)
-function escapeHTML(str) {
-    if (typeof str !== 'string') return str;
-    return str.replace(/[&<>'"]/g, tag => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
-    }[tag]));
+/**
+ * Prevención de inyecciones XSS sanitizando entradas en el cliente (OWASP A03)
+ */
+function sanitizarHTML(cadena) {
+    const div = document.createElement('div');
+    div.textContent = cadena;
+    return div.innerHTML;
 }
 
-// GESTIÓN ADMIN CON FIREBASE AUTH
-btnAbrirAdmin.addEventListener('click', async () => {
-    if (!esAdmin) {
-        const password = prompt("Ingrese la contraseña de administrador:");
-        if (password) {
-            try {
-                btnAbrirAdmin.innerText = "⏳ Verificando...";
-                // Autenticación real contra los servidores de Google
-                await auth.signInWithEmailAndPassword(ADMIN_EMAIL, password);
-            } catch (error) {
-                alert("Contraseña incorrecta o error de conexión.");
-                btnAbrirAdmin.innerText = "🔑 Admin";
-            }
-        }
-    } else {
-        panelAdmin.classList.add('open');
-    }
-});
-
-// Listener de estado de autenticación de Firebase
+/**
+ * Escuchador de estado de sesión oficial de Firebase Auth (OWASP A07)
+ */
 auth.onAuthStateChanged((user) => {
     if (user && user.email === ADMIN_EMAIL) {
         esAdmin = true;
-        btnAbrirAdmin.innerText = "⚙️ Panel";
-        panelAdmin.classList.add('open');
-        cargarProductos(); // Recargar grilla con botones de admin habilitados
+        if (btnAbrirAdmin) btnAbrirAdmin.textContent = "⚙️ Admin Activo";
+        panelAdmin?.classList.remove('hidden');
     } else {
         esAdmin = false;
-        btnAbrirAdmin.innerText = "🔑 Admin";
-        panelAdmin.classList.remove('open');
-        cargarProductos();
+        if (btnAbrirAdmin) btnAbrirAdmin.textContent = "🔑 Iniciar Sesión";
+        panelAdmin?.classList.add('hidden');
     }
 });
 
-btnCerrarAdmin.addEventListener('click', () => {
-    panelAdmin.classList.remove('open');
-    resetearFormulario();
-});
-
-inputImagen.addEventListener('change', () => {
-    if(inputImagen.files.length > 0) labelImagen.innerText = "✅ Foto seleccionada";
-});
-
-// ALTA Y EDICION
-btnAgregar.addEventListener('click', async () => {
-    const archivo = inputImagen.files[0];
-    const titulo = inputTitulo.value.trim();
-    const precio = inputPrecio.value.trim();
-
-    if (!titulo || !precio) {
-        alert("Completa el título y el precio.");
+/**
+ * Autenticación segura mediante el backend oficial de Firebase
+ */
+async function gestionarAccesoAdmin() {
+    if (esAdmin) {
+        panelAdmin?.classList.remove('hidden');
         return;
     }
 
-    btnAgregar.innerText = "Procesando...";
-    btnAgregar.disabled = true;
+    const passwordIngresada = prompt("Ingrese la contraseña de administración:");
+    if (!passwordIngresada) return;
 
     try {
-        let urlImagen = null;
-
-        if (archivo) {
-            const formData = new FormData();
-            formData.append("image", archivo);
-            const respuestaImg = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
-                method: "POST",
-                body: formData
-            });
-            const datosImg = await respuestaImg.json();
-            if (datosImg.success) urlImagen = datosImg.data.url;
-        }
-
-        if (productoEditandoId) {
-            const datosActualizar = { titulo: titulo, precio: Number(precio) };
-            if (urlImagen) datosActualizar.imagenUrl = urlImagen;
-            await db.collection("productos").doc(productoEditandoId).update(datosActualizar);
-            alert("¡Producto actualizado!");
-        } else {
-            if (!urlImagen) {
-                alert("Selecciona una imagen para el producto.");
-                btnAgregar.innerText = "Agregar Producto";
-                btnAgregar.disabled = false;
-                return;
-            }
-            await db.collection("productos").add({
-                titulo: titulo,
-                precio: Number(precio),
-                imagenUrl: urlImagen,
-                fecha: firebase.firestore.FieldValue.serverTimestamp()
-            });
-            alert("¡Producto publicado!");
-        }
-
-        resetearFormulario();
-        panelAdmin.classList.remove('open');
+        // Autenticación oficial contra Firebase Auth usando la cuenta registrada
+        await auth.signInWithEmailAndPassword(ADMIN_EMAIL, passwordIngresada);
+        alert("Acceso concedido.");
     } catch (error) {
-        console.error("Error al publicar:", error);
-        alert("Permiso denegado. Asegúrate de tener los permisos correctos en Firebase.");
-    } finally {
-        btnAgregar.disabled = false;
+        console.error("Error de autenticación:", error.message);
+        alert("Contraseña incorrecta o acceso no autorizado.");
     }
-});
+}
 
-// CARGA DE CATALOGO CON SPINNER (Protegido contra XSS)
-function cargarProductos() {
-    db.collection("productos").orderBy("fecha", "desc").onSnapshot((querySnapshot) => {
-        loadingSpinner.style.display = "none";
-        gridProductos.innerHTML = "";
-        
-        if (querySnapshot.empty) {
-            gridProductos.innerHTML = "<p style='grid-column:1/-1; text-align:center;'>No hay productos disponibles.</p>";
-            return;
-        }
+/**
+ * Subida directa de imagen a ImgBB mediante FormData (Conserva flujo original sin Storage)
+ */
+async function subirImagenImgBB(file) {
+    const formData = new FormData();
+    formData.append('image', file);
 
-        querySnapshot.forEach((doc) => {
-            const p = doc.data();
-            const id = doc.id;
-            
-            // Sanitización de entradas provenientes de la base de datos
-            const safeTitulo = escapeHTML(p.titulo);
-            const safeUrl = escapeHTML(p.imagenUrl);
+    const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
+        method: 'POST',
+        body: formData
+    });
 
-            const accionesAdmin = esAdmin ? `
-                <div class="admin-actions">
-                    <button class="btn-share" onclick="compartirProducto('${safeTitulo}', ${p.precio}, '${safeUrl}')" title="Compartir en redes">🔗</button>
-                    <button class="btn-edit" onclick="prepararEdicion('${id}', '${safeTitulo}', ${p.precio})">✏️</button>
-                    <button class="btn-del" onclick="eliminarProducto('${id}')">🗑️</button>
-                </div>
-            ` : '';
+    const data = await response.json();
+    if (data.success) {
+        return data.data.url;
+    } else {
+        throw new Error("Error al subir la imagen a ImgBB");
+    }
+}
 
-            const div = document.createElement('div');
-            div.className = 'product-card';
-            div.innerHTML = `
-                ${accionesAdmin}
-                <img src="${safeUrl}" alt="${safeTitulo}" class="product-img">
-                <div class="product-info">
-                    <h3 class="product-title">${safeTitulo}</h3>
-                    <p class="product-price">$${p.precio}</p>
-                    <button class="btn-add-cart" onclick="agregarAlCarrito('${id}', '${safeTitulo}', ${p.precio})">🛒 Agregar</button>
-                </div>
-            `;
-            gridProductos.appendChild(div);
+/**
+ * Manejo del formulario para guardar un nuevo producto en Firestore DB
+ */
+formProducto?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    if (!esAdmin) {
+        alert("Operación no permitida. Debe iniciar sesión como administrador.");
+        return;
+    }
+
+    const inputNombre = document.getElementById('input-nombre');
+    const inputPrecio = document.getElementById('input-precio');
+    const inputImagen = document.getElementById('input-imagen-file'); // <input type="file" capture="environment">
+
+    const nombreLimpio = sanitizarHTML(inputNombre.value.trim());
+    const precio = parseFloat(inputPrecio.value);
+    const archivoImagen = inputImagen?.files[0];
+
+    if (!nombreLimpio || isNaN(precio) || !archivoImagen) {
+        alert("Por favor completa los campos y captura/selecciona una imagen.");
+        return;
+    }
+
+    try {
+        // 1. Subida directa de la captura desde la cámara/dispositivo a ImgBB
+        const urlImagen = await subirImagenImgBB(archivoImagen);
+
+        // 2. Registro del documento en la base de datos Firestore
+        await db.collection('productos').add({
+            nombre: nombreLimpio,
+            precio: precio,
+            imagenUrl: urlImagen,
+            creadoEn: firebase.firestore.FieldValue.serverTimestamp()
         });
-    });
-}
 
-// CARRITO AGRUPADO CON CONTADORES
-window.agregarAlCarrito = (id, titulo, precio) => {
-    const safeTitulo = escapeHTML(titulo);
-    const existe = carrito.find(p => p.id === id);
-    if (existe) {
-        existe.cantidad += 1;
-    } else {
-        carrito.push({ id, titulo: safeTitulo, precio, cantidad: 1 });
+        alert("Producto publicado exitosamente.");
+        formProducto.reset();
+        panelAdmin?.classList.add('hidden');
+    } catch (error) {
+        console.error("Error en la publicación:", error);
+        alert("Error al procesar la publicación.");
     }
-    actualizarCarritoUI();
-};
-
-function actualizarCarritoUI() {
-    let cantidadTotal = 0;
-    let precioTotal = 0;
-    cartItemsContainer.innerHTML = "";
-
-    carrito.forEach((prod, index) => {
-        cantidadTotal += prod.cantidad;
-        precioTotal += prod.precio * prod.cantidad;
-
-        const itemDiv = document.createElement('div');
-        itemDiv.className = 'cart-item';
-        itemDiv.innerHTML = `
-            <div class="cart-item-info">
-                <strong>${prod.titulo}</strong>
-                <small>$${prod.precio} c/u</small>
-            </div>
-            <div class="cart-item-controls">
-                <button class="btn-qty" onclick="cambiarCantidad(${index}, -1)">-</button>
-                <span>${prod.cantidad}</span>
-                <button class="btn-qty" onclick="cambiarCantidad(${index}, 1)">+</button>
-            </div>
-        `;
-        cartItemsContainer.appendChild(itemDiv);
-    });
-
-    cartCountSpan.innerText = cantidadTotal;
-    cartTotalPriceSpan.innerText = precioTotal;
-}
-
-window.cambiarCantidad = (index, cambio) => {
-    carrito[index].cantidad += cambio;
-    if (carrito[index].cantidad <= 0) {
-        carrito.splice(index, 1);
-    }
-    actualizarCarritoUI();
-};
-
-btnCarritoFlotante.addEventListener('click', () => modalCarrito.classList.add('open'));
-btnCerrarCarrito.addEventListener('click', () => modalCarrito.classList.remove('open'));
-
-btnEnviarPedidoWA.addEventListener('click', () => {
-    if (carrito.length === 0) {
-        alert("El carrito está vacío.");
-        return;
-    }
-    let texto = "Hola, me gustaría encargar los siguientes productos:\n\n";
-    let total = 0;
-    carrito.forEach(p => {
-        const subtotal = p.precio * p.cantidad;
-        texto += `- ${p.titulo} x${p.cantidad}: $${subtotal}\n`;
-        total += subtotal;
-    });
-    texto += `\n*Total: $${total}*`;
-
-    const urlWA = `https://wa.me/${TELEFONO_WHATSAPP}?text=${encodeURIComponent(texto)}`;
-    window.open(urlWA, '_blank');
 });
 
-// EDICION Y BORRADO
-window.prepararEdicion = (id, titulo, precio) => {
-    productoEditandoId = id;
-    inputTitulo.value = titulo;
-    inputPrecio.value = precio;
-    labelImagen.innerText = "📷 Cambiar foto (opcional)";
-    btnAgregar.innerText = "Guardar Cambios";
-    panelAdmin.classList.add('open');
-};
-
-window.eliminarProducto = async (id) => {
-    if (confirm("¿Estás seguro de eliminar esta publicación?")) {
-        await db.collection("productos").doc(id).delete();
-    }
-};
-
-function resetearFormulario() {
-    productoEditandoId = null;
-    inputImagen.value = "";
-    inputTitulo.value = "";
-    inputPrecio.value = "";
-    labelImagen.innerText = "📸 Seleccionar foto";
-    btnAgregar.innerText = "Agregar Producto";
-}
-
-// FUNCIONALIDAD COMPARTIR CON FOTO Y ENLACE LIMPIO
-window.compartirProducto = async (titulo, precio, imagenUrl) => {
-    const urlTienda = window.location.href;
-    const textoCompartir = `✨ ¡Mirá este producto en Begus!\n📌 ${titulo} - $${precio}\n👉 Catálogo completo acá: ${urlTienda}`;
-
-    try {
-        const response = await fetch(imagenUrl);
-        const blob = await response.blob();
-        const file = new File([blob], 'producto.jpg', { type: blob.type });
-
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-            await navigator.share({
-                title: `${titulo} - Begus`,
-                text: textoCompartir,
-                files: [file]
-            });
-            return;
-        }
-    } catch (error) {
-        console.log("No se pudo adjuntar la foto, enviando solo texto...", error);
-    }
-
-    if (navigator.share) {
-        try {
-            await navigator.share({
-                title: `${titulo} - Begus`,
-                text: textoCompartir,
-                url: urlTienda
-            });
-        } catch (err) {
-            console.log("Compartir cancelado.");
-        }
-    } else {
-        navigator.clipboard.writeText(textoCompartir);
-        alert("¡Enlace y texto copiados al portapapeles!");
-    }
-};
-
-cargarProductos();
+// Asignación de eventos de interfaz
+btnAbrirAdmin?.addEventListener('click', gestionarAccesoAdmin);
+btnCerrarAdmin?.addEventListener('click', () => panelAdmin?.classList.add('hidden'));
