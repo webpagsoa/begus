@@ -1,0 +1,40 @@
+name: Deploy Static Site to GitHub Pages
+
+# Disparador: Se ejecuta automáticamente al hacer commit o push a la rama 'main'
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch: # Permite ejecutar el despliegue manualmente si lo deseas
+
+# OWASP A08: Definición explícita de permisos mínimos requeridos
+permissions:
+  contents: read      # Permite leer el código HTML, CSS y JS del repositorio
+  pages: write         # Permite escribir y publicar en GitHub Pages
+  id-token: write      # Genera un token criptográfico seguro para autenticar el despliegue
+
+# Control de concurrencia: Evita que el despliegue se cancele ("Cancelled after 12s")
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Descargar código fuente
+        uses: actions/checkout@v4
+
+      - name: 2. Configurar motor de GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: 3. Empaquetar archivos estáticos
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.' # Procesa la raíz del proyecto (index.html, style.css, app.js)
+
+      - name: 4. Publicar en producción
+        id: deployment
+        uses: actions/deploy-pages@v4
