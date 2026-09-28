@@ -47,6 +47,36 @@
         </div>
     </div>
 
+    <!-- Modal para Editar Producto -->
+    <div id="modal-editar" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Editar Producto</h2>
+                <button id="btn-cerrar-editar" class="btn-close">&times;</button>
+            </div>
+            <form id="form-editar-producto">
+                <input type="hidden" id="edit-id">
+                <input type="hidden" id="edit-imagen-actual">
+                
+                <div class="form-group" style="text-align: center;">
+                    <img id="edit-preview-img" src="" alt="Vista previa" style="max-width: 100%; max-height: 200px; border-radius: 8px; margin-bottom: 10px;">
+                    <input type="file" id="edit-input-imagen" accept="image/*" class="file-input">
+                    <label for="edit-input-imagen" id="edit-label-imagen" class="file-upload-label">📸 Cambiar foto (opcional)</label>
+                </div>
+                
+                <div class="form-group">
+                    <input type="text" id="edit-input-nombre" placeholder="Título de la prenda / producto" required>
+                </div>
+
+                <div class="form-group">
+                    <input type="number" id="edit-input-precio" placeholder="Precio ($)" step="0.01" required>
+                </div>
+
+                <button type="submit" class="btn-submit">Guardar Cambios</button>
+            </form>
+        </div>
+    </div>
+
     <!-- Panel de Administración Lateral -->
     <div id="panel-admin" class="admin-panel">
         <div class="panel-header">
@@ -61,7 +91,7 @@
             </div>
             
             <div class="form-group">
-                <input type="text" id="input-nombre" placeholder="Título del producto" required>
+                <input type="text" id="input-nombre" placeholder="Título de la prenda / producto" required>
             </div>
 
             <div class="form-group">
