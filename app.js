@@ -1,155 +1,331 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { 
-    getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp 
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { 
-    getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged 
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-
-// 1. Configuración del proyecto Firebase
 const firebaseConfig = {
     apiKey: "AIzaSyDnl23nvPG7hoMV0fE2NYJR7dWY-msEIcI",
     authDomain: "begus-4a593.firebaseapp.com",
     projectId: "begus-4a593",
     storageBucket: "begus-4a593.firebasestorage.app",
     messagingSenderId: "171755943273",
-    appId: "1:171755943273:web:0a5fadb6978614eaeaf9f8"
+    appId: "1:171755943273:web:0a5fadb6978614eaeaf9f8",
+    measurementId: "G-EQ9JV2DCC2"
 };
+const IMGBB_API_KEY = "3052862c887588cf31e3baec2a6eb3f0";
+const TELEFONO_WHATSAPP = "5493725641328";
 
-// 2. Constantes de Administración
-const TELEFONO_ADMIN = "5493725401808";
-const DOMINIO_INTERNO = "@begus.internal";
+// [SEGURIDAD]: Eliminada la constante CLAVE_ADMIN expuesta en el cliente.
+const ADMIN_EMAIL = "5493725401808@begus.internal"; 
 
-// 3. Inicialización de Servicios
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const auth = getAuth(app);
-const productosRef = collection(db, "productos");
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const auth = firebase.auth(); // Instancia de Firebase Auth
 
 let esAdmin = false;
 let productoEditandoId = null;
+let carrito = [];
 
-// --- ESTADO DE AUTENTICACIÓN Y RENDERIZADO ---
-onAuthStateChanged(auth, (user) => {
-    if (user && user.email === `${TELEFONO_ADMIN}${DOMINIO_INTERNO}`) {
-        esAdmin = true;
-        actualizarUIAdmin(true);
-    } else {
-        esAdmin = false;
-        actualizarUIAdmin(false);
-    }
-    escucharProductos();
-});
+// DOM Elements
+const btnAbrirAdmin = document.getElementById('btn-abrir-admin');
+const btnCerrarAdmin = document.getElementById('btn-cerrar-admin');
+const panelAdmin = document.getElementById('panel-admin');
+const btnAgregar = document.getElementById('btn-agregar-producto');
+const inputImagen = document.getElementById('img-file');
+const inputTitulo = document.getElementById('input-titulo');
+const inputPrecio = document.getElementById('input-precio');
+const labelImagen = document.querySelector('.file-upload-label');
+const gridProductos = document.getElementById('grid-productos');
+const loadingSpinner = document.getElementById('loading-spinner');
 
-function actualizarUIAdmin(autenticado) {
-    const btnAdmin = document.getElementById('btn-abrir-admin');
-    const panelAdmin = document.getElementById('panel-admin');
-    
-    if (btnAdmin) {
-        btnAdmin.innerText = autenticado ? "⚙️ Cerrar Sesión" : "🔑 Admin";
-    }
-    if (panelAdmin) {
-        panelAdmin.classList.toggle('open', autenticado);
-    }
+// Carrito Elements
+const btnCarritoFlotante = document.getElementById('btn-carrito-flotante');
+const modalCarrito = document.getElementById('modal-carrito');
+const btnCerrarCarrito = document.getElementById('btn-cerrar-carrito');
+const cartItemsContainer = document.getElementById('cart-items');
+const cartCountSpan = document.getElementById('cart-count');
+const cartTotalPriceSpan = document.getElementById('cart-total-price');
+const btnEnviarPedidoWA = document.getElementById('btn-enviar-pedido-wa');
+
+// [SEGURIDAD] Función para sanitizar inputs y prevenir vulnerabilidades XSS (OWASP A03)
+function escapeHTML(str) {
+    if (typeof str !== 'string') return str;
+    return str.replace(/[&<>'"]/g, tag => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+    }[tag]));
 }
 
-// Botón de Inicio/Cierre de Sesión
-document.getElementById('btn-abrir-admin')?.addEventListener('click', async () => {
+// GESTIÓN ADMIN CON FIREBASE AUTH
+btnAbrirAdmin.addEventListener('click', async () => {
     if (!esAdmin) {
-        const telefonoInput = prompt("Ingrese su número de celular administrador:");
-        if (!telefonoInput) return;
-        
-        const passwordInput = prompt("Ingrese su contraseña:");
-        if (!passwordInput) return;
-
-        // Sanitización del teléfono de entrada
-        const telefonoLimpio = telefonoInput.replace(/\D/g, '');
-        const emailSintetizado = `${telefonoLimpio}${DOMINIO_INTERNO}`;
-
-        try {
-            await signInWithEmailAndPassword(auth, emailSintetizado, passwordInput);
-        } catch (error) {
-            console.error("Error de acceso:", error.code);
-            alert("Credenciales incorrectas o no autorizadas.");
+        const password = prompt("Ingrese la contraseña de administrador:");
+        if (password) {
+            try {
+                btnAbrirAdmin.innerText = "⏳ Verificando...";
+                // Autenticación real contra los servidores de Google
+                await auth.signInWithEmailAndPassword(ADMIN_EMAIL, password);
+            } catch (error) {
+                alert("Contraseña incorrecta o error de conexión.");
+                btnAbrirAdmin.innerText = "🔑 Admin";
+            }
         }
     } else {
-        await signOut(auth);
+        panelAdmin.classList.add('open');
     }
 });
 
-// --- LECTURA EN TIEMPO REAL DEL CATÁLOGO ---
-function escucharProductos() {
-    const q = query(productosRef, orderBy("creado", "desc"));
-    onSnapshot(q, (snapshot) => {
-        const contenedor = document.getElementById('catalogo-productos');
-        if (!contenedor) return;
-        contenedor.innerHTML = "";
+// Listener de estado de autenticación de Firebase
+auth.onAuthStateChanged((user) => {
+    if (user && user.email === ADMIN_EMAIL) {
+        esAdmin = true;
+        btnAbrirAdmin.innerText = "⚙️ Panel";
+        panelAdmin.classList.add('open');
+        cargarProductos(); // Recargar grilla con botones de admin habilitados
+    } else {
+        esAdmin = false;
+        btnAbrirAdmin.innerText = "🔑 Admin";
+        panelAdmin.classList.remove('open');
+        cargarProductos();
+    }
+});
+
+btnCerrarAdmin.addEventListener('click', () => {
+    panelAdmin.classList.remove('open');
+    resetearFormulario();
+});
+
+inputImagen.addEventListener('change', () => {
+    if(inputImagen.files.length > 0) labelImagen.innerText = "✅ Foto seleccionada";
+});
+
+// ALTA Y EDICION
+btnAgregar.addEventListener('click', async () => {
+    const archivo = inputImagen.files[0];
+    const titulo = inputTitulo.value.trim();
+    const precio = inputPrecio.value.trim();
+
+    if (!titulo || !precio) {
+        alert("Completa el título y el precio.");
+        return;
+    }
+
+    btnAgregar.innerText = "Procesando...";
+    btnAgregar.disabled = true;
+
+    try {
+        let urlImagen = null;
+
+        if (archivo) {
+            const formData = new FormData();
+            formData.append("image", archivo);
+            const respuestaImg = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
+                method: "POST",
+                body: formData
+            });
+            const datosImg = await respuestaImg.json();
+            if (datosImg.success) urlImagen = datosImg.data.url;
+        }
+
+        if (productoEditandoId) {
+            const datosActualizar = { titulo: titulo, precio: Number(precio) };
+            if (urlImagen) datosActualizar.imagenUrl = urlImagen;
+            await db.collection("productos").doc(productoEditandoId).update(datosActualizar);
+            alert("¡Producto actualizado!");
+        } else {
+            if (!urlImagen) {
+                alert("Selecciona una imagen para el producto.");
+                btnAgregar.innerText = "Agregar Producto";
+                btnAgregar.disabled = false;
+                return;
+            }
+            await db.collection("productos").add({
+                titulo: titulo,
+                precio: Number(precio),
+                imagenUrl: urlImagen,
+                fecha: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            alert("¡Producto publicado!");
+        }
+
+        resetearFormulario();
+        panelAdmin.classList.remove('open');
+    } catch (error) {
+        console.error("Error al publicar:", error);
+        alert("Permiso denegado. Asegúrate de tener los permisos correctos en Firebase.");
+    } finally {
+        btnAgregar.disabled = false;
+    }
+});
+
+// CARGA DE CATALOGO CON SPINNER (Protegido contra XSS)
+function cargarProductos() {
+    db.collection("productos").orderBy("fecha", "desc").onSnapshot((querySnapshot) => {
+        loadingSpinner.style.display = "none";
+        gridProductos.innerHTML = "";
         
-        snapshot.forEach((docSnap) => {
-            const p = docSnap.data();
-            const id = docSnap.id;
+        if (querySnapshot.empty) {
+            gridProductos.innerHTML = "<p style='grid-column:1/-1; text-align:center;'>No hay productos disponibles.</p>";
+            return;
+        }
+
+        querySnapshot.forEach((doc) => {
+            const p = doc.data();
+            const id = doc.id;
             
-            const card = document.createElement('div');
-            card.className = "producto-card";
-            card.innerHTML = `
-                <img src="${p.imagenUrl || 'https://via.placeholder.com/300'}" alt="${p.nombre}">
-                <h3>${p.nombre}</h3>
-                <p class="precio">$${p.precio}</p>
-                ${esAdmin ? `
-                    <div class="acciones-admin">
-                        <button onclick="prepararEdicion('${id}', '${p.nombre}', ${p.precio}, '${p.imagenUrl}')">✏️ Editar</button>
-                        <button onclick="eliminarProducto('${id}')">🗑️ Eliminar</button>
-                    </div>
-                ` : ''}
+            // Sanitización de entradas provenientes de la base de datos
+            const safeTitulo = escapeHTML(p.titulo);
+            const safeUrl = escapeHTML(p.imagenUrl);
+
+            const accionesAdmin = esAdmin ? `
+                <div class="admin-actions">
+                    <button class="btn-share" onclick="compartirProducto('${safeTitulo}', ${p.precio}, '${safeUrl}')" title="Compartir en redes">🔗</button>
+                    <button class="btn-edit" onclick="prepararEdicion('${id}', '${safeTitulo}', ${p.precio})">✏️</button>
+                    <button class="btn-del" onclick="eliminarProducto('${id}')">🗑️</button>
+                </div>
+            ` : '';
+
+            const div = document.createElement('div');
+            div.className = 'product-card';
+            div.innerHTML = `
+                ${accionesAdmin}
+                <img src="${safeUrl}" alt="${safeTitulo}" class="product-img">
+                <div class="product-info">
+                    <h3 class="product-title">${safeTitulo}</h3>
+                    <p class="product-price">$${p.precio}</p>
+                    <button class="btn-add-cart" onclick="agregarAlCarrito('${id}', '${safeTitulo}', ${p.precio})">🛒 Agregar</button>
+                </div>
             `;
-            contenedor.appendChild(card);
+            gridProductos.appendChild(div);
         });
     });
 }
 
-// --- GESTIÓN DE PRODUCTOS (CRUD) ---
-document.getElementById('form-producto')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (!esAdmin) return alert("Acceso denegado: No tienes permisos de administrador.");
-
-    const nombre = document.getElementById('input-nombre').value.trim();
-    const precio = parseFloat(document.getElementById('input-precio').value);
-    const imagenUrl = document.getElementById('input-imagen-url').value.trim();
-
-    try {
-        if (productoEditandoId) {
-            const docRef = doc(db, "productos", productoEditandoId);
-            await updateDoc(docRef, { nombre, precio, imagenUrl });
-            productoEditandoId = null;
-        } else {
-            await addDoc(productosRef, {
-                nombre,
-                precio,
-                imagenUrl,
-                creado: serverTimestamp()
-            });
-        }
-        document.getElementById('form-producto').reset();
-    } catch (error) {
-        console.error("Error al guardar en Firestore:", error);
-        alert("Error de escritura en la base de datos.");
+// CARRITO AGRUPADO CON CONTADORES
+window.agregarAlCarrito = (id, titulo, precio) => {
+    const safeTitulo = escapeHTML(titulo);
+    const existe = carrito.find(p => p.id === id);
+    if (existe) {
+        existe.cantidad += 1;
+    } else {
+        carrito.push({ id, titulo: safeTitulo, precio, cantidad: 1 });
     }
+    actualizarCarritoUI();
+};
+
+function actualizarCarritoUI() {
+    let cantidadTotal = 0;
+    let precioTotal = 0;
+    cartItemsContainer.innerHTML = "";
+
+    carrito.forEach((prod, index) => {
+        cantidadTotal += prod.cantidad;
+        precioTotal += prod.precio * prod.cantidad;
+
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'cart-item';
+        itemDiv.innerHTML = `
+            <div class="cart-item-info">
+                <strong>${prod.titulo}</strong>
+                <small>$${prod.precio} c/u</small>
+            </div>
+            <div class="cart-item-controls">
+                <button class="btn-qty" onclick="cambiarCantidad(${index}, -1)">-</button>
+                <span>${prod.cantidad}</span>
+                <button class="btn-qty" onclick="cambiarCantidad(${index}, 1)">+</button>
+            </div>
+        `;
+        cartItemsContainer.appendChild(itemDiv);
+    });
+
+    cartCountSpan.innerText = cantidadTotal;
+    cartTotalPriceSpan.innerText = precioTotal;
+}
+
+window.cambiarCantidad = (index, cambio) => {
+    carrito[index].cantidad += cambio;
+    if (carrito[index].cantidad <= 0) {
+        carrito.splice(index, 1);
+    }
+    actualizarCarritoUI();
+};
+
+btnCarritoFlotante.addEventListener('click', () => modalCarrito.classList.add('open'));
+btnCerrarCarrito.addEventListener('click', () => modalCarrito.classList.remove('open'));
+
+btnEnviarPedidoWA.addEventListener('click', () => {
+    if (carrito.length === 0) {
+        alert("El carrito está vacío.");
+        return;
+    }
+    let texto = "Hola, me gustaría encargar los siguientes productos:\n\n";
+    let total = 0;
+    carrito.forEach(p => {
+        const subtotal = p.precio * p.cantidad;
+        texto += `- ${p.titulo} x${p.cantidad}: $${subtotal}\n`;
+        total += subtotal;
+    });
+    texto += `\n*Total: $${total}*`;
+
+    const urlWA = `https://wa.me/${TELEFONO_WHATSAPP}?text=${encodeURIComponent(texto)}`;
+    window.open(urlWA, '_blank');
 });
 
-window.prepararEdicion = (id, nombre, precio, imagenUrl) => {
+// EDICION Y BORRADO
+window.prepararEdicion = (id, titulo, precio) => {
     productoEditandoId = id;
-    document.getElementById('input-nombre').value = nombre;
-    document.getElementById('input-precio').value = precio;
-    document.getElementById('input-imagen-url').value = imagenUrl;
+    inputTitulo.value = titulo;
+    inputPrecio.value = precio;
+    labelImagen.innerText = "📷 Cambiar foto (opcional)";
+    btnAgregar.innerText = "Guardar Cambios";
+    panelAdmin.classList.add('open');
 };
 
 window.eliminarProducto = async (id) => {
-    if (!esAdmin) return;
-    if (confirm("¿Confirmas que deseas eliminar este producto?")) {
-        try {
-            await deleteDoc(doc(db, "productos", id));
-        } catch (error) {
-            console.error("Error al eliminar documento:", error);
-        }
+    if (confirm("¿Estás seguro de eliminar esta publicación?")) {
+        await db.collection("productos").doc(id).delete();
     }
 };
+
+function resetearFormulario() {
+    productoEditandoId = null;
+    inputImagen.value = "";
+    inputTitulo.value = "";
+    inputPrecio.value = "";
+    labelImagen.innerText = "📸 Seleccionar foto";
+    btnAgregar.innerText = "Agregar Producto";
+}
+
+// FUNCIONALIDAD COMPARTIR CON FOTO Y ENLACE LIMPIO
+window.compartirProducto = async (titulo, precio, imagenUrl) => {
+    const urlTienda = window.location.href;
+    const textoCompartir = `✨ ¡Mirá este producto en Begus!\n📌 ${titulo} - $${precio}\n👉 Catálogo completo acá: ${urlTienda}`;
+
+    try {
+        const response = await fetch(imagenUrl);
+        const blob = await response.blob();
+        const file = new File([blob], 'producto.jpg', { type: blob.type });
+
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({
+                title: `${titulo} - Begus`,
+                text: textoCompartir,
+                files: [file]
+            });
+            return;
+        }
+    } catch (error) {
+        console.log("No se pudo adjuntar la foto, enviando solo texto...", error);
+    }
+
+    if (navigator.share) {
+        try {
+            await navigator.share({
+                title: `${titulo} - Begus`,
+                text: textoCompartir,
+                url: urlTienda
+            });
+        } catch (err) {
+            console.log("Compartir cancelado.");
+        }
+    } else {
+        navigator.clipboard.writeText(textoCompartir);
+        alert("¡Enlace y texto copiados al portapapeles!");
+    }
+};
+
+cargarProductos();
