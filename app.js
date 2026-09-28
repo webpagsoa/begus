@@ -1,181 +1,214 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { 
+    getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp 
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { 
+    getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged 
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { 
+    getStorage, ref, uploadBytes, getDownloadURL 
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
+
+// Configuración Pública
 const firebaseConfig = {
     apiKey: "AIzaSyDnl23nvPG7hoMV0fE2NYJR7dWY-msEIcI",
     authDomain: "begus-4a593.firebaseapp.com",
     projectId: "begus-4a593",
     storageBucket: "begus-4a593.firebasestorage.app",
     messagingSenderId: "171755943273",
-    appId: "1:171755943273:web:0a5fadb6978614eaeaf9f8",
-    measurementId: "G-EQ9JV2DCC2"
+    appId: "1:171755943273:web:0a5fadb6978614eaeaf9f8"
 };
-const IMGBB_API_KEY = "3052862c887588cf31e3baec2a6eb3f0";
-const TELEFONO_WHATSAPP = "5493725401808";
-const CLAVE_ADMIN = "2712";
 
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+const TELEFONO_WHATSAPP = "5493725641328";
+const DOMINIO_INTERNO = "@begus.internal"; // Identidad sintáctica segura
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+const storage = getStorage(app);
+const productosRef = collection(db, "productos");
 
 let esAdmin = false;
 let productoEditandoId = null;
 let carrito = [];
 
 // DOM Elements
-const btnAbrirAdmin = document.getElementById('btn-abrir-admin');
-const btnCerrarAdmin = document.getElementById('btn-cerrar-admin');
 const panelAdmin = document.getElementById('panel-admin');
-const btnAgregar = document.getElementById('btn-agregar-producto');
-const inputImagen = document.getElementById('img-file');
-const inputTitulo = document.getElementById('input-titulo');
-const inputPrecio = document.getElementById('input-precio');
-const labelImagen = document.querySelector('.file-upload-label');
 const gridProductos = document.getElementById('grid-productos');
-const loadingSpinner = document.getElementById('loading-spinner');
+const btnAbrirAdmin = document.getElementById('btn-abrir-admin');
 
-// Carrito Elements
-const btnCarritoFlotante = document.getElementById('btn-carrito-flotante');
-const modalCarrito = document.getElementById('modal-carrito');
-const btnCerrarCarrito = document.getElementById('btn-cerrar-carrito');
-const cartItemsContainer = document.getElementById('cart-items');
-const cartCountSpan = document.getElementById('cart-count');
-const cartTotalPriceSpan = document.getElementById('cart-total-price');
-const btnEnviarPedidoWA = document.getElementById('btn-enviar-pedido-wa');
+// --- 1. AUTENTICACIÓN SEGURA Y REACTIVA (A01 & A07 Mitigados) ---
+onAuthStateChanged(auth, (user) => {
+    if (user && user.email.endsWith(DOMINIO_INTERNO)) {
+        esAdmin = true;
+        btnAbrirAdmin.innerText = "⚙️ Cerrar Sesión";
+        panelAdmin.classList.add('open');
+    } else {
+        esAdmin = false;
+        btnAbrirAdmin.innerText = "🔑 Admin";
+        panelAdmin.classList.remove('open');
+    }
+    renderizarCatalogo(); // Re-renderiza para mostrar/ocultar botones edit/delete
+});
 
-// GESTIÓN ADMIN
-btnAbrirAdmin.addEventListener('click', () => {
+btnAbrirAdmin.addEventListener('click', async () => {
     if (!esAdmin) {
-        const password = prompt("Ingrese la contraseña de administrador:");
-        if (password === CLAVE_ADMIN) {
-            esAdmin = true;
-            btnAbrirAdmin.innerText = "⚙️ Panel";
-            panelAdmin.classList.add('open');
-            cargarProductos();
-        } else if (password !== null) {
-            alert("Contraseña incorrecta.");
+        const telefono = prompt("Ingrese su celular de administración:");
+        if (!telefono) return;
+        const password = prompt("Ingrese la contraseña secreta:");
+        if (!password) return;
+
+        const emailSintetizado = `${telefono.replace(/\D/g, '')}${DOMINIO_INTERNO}`;
+        
+        try {
+            await signInWithEmailAndPassword(auth, emailSintetizado, password);
+        } catch (error) {
+            console.error("Error Auth:", error);
+            alert("Credenciales inválidas.");
         }
     } else {
-        panelAdmin.classList.add('open');
+        await signOut(auth);
+        resetearFormulario();
     }
 });
 
-btnCerrarAdmin.addEventListener('click', () => {
-    panelAdmin.classList.remove('open');
-    resetearFormulario();
-});
+// --- 2. GESTIÓN DE PRODUCTOS Y STORAGE SEGURA ---
+document.getElementById('btn-agregar-producto').addEventListener('click', async (e) => {
+    const inputImagen = document.getElementById('img-file');
+    const inputTitulo = document.getElementById('input-titulo');
+    const inputPrecio = document.getElementById('input-precio');
+    const btnSubmit = e.target;
 
-inputImagen.addEventListener('change', () => {
-    if(inputImagen.files.length > 0) labelImagen.innerText = "✅ Foto seleccionada";
-});
-
-// ALTA Y EDICION
-btnAgregar.addEventListener('click', async () => {
-    const archivo = inputImagen.files[0];
     const titulo = inputTitulo.value.trim();
-    const precio = inputPrecio.value.trim();
+    const precio = Number(inputPrecio.value.trim());
+    const archivo = inputImagen.files[0];
 
-    if (!titulo || !precio) {
-        alert("Completa el título y el precio.");
-        return;
-    }
+    if (!titulo || !precio) return alert("Completa el título y el precio.");
 
-    btnAgregar.innerText = "Procesando...";
-    btnAgregar.disabled = true;
+    btnSubmit.innerText = "Procesando...";
+    btnSubmit.disabled = true;
 
     try {
         let urlImagen = null;
 
+        // Subida a Firebase Storage en lugar de ImgBB
         if (archivo) {
-            const formData = new FormData();
-            formData.append("image", archivo);
-            const respuestaImg = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
-                method: "POST",
-                body: formData
-            });
-            const datosImg = await respuestaImg.json();
-            if (datosImg.success) urlImagen = datosImg.data.url;
+            const fileName = `${Date.now()}_${archivo.name}`;
+            const storageRef = ref(storage, `productos/${fileName}`);
+            await uploadBytes(storageRef, archivo);
+            urlImagen = await getDownloadURL(storageRef);
         }
 
         if (productoEditandoId) {
-            const datosActualizar = { titulo: titulo, precio: Number(precio) };
-            if (urlImagen) datosActualizar.imagenUrl = urlImagen;
-            await db.collection("productos").doc(productoEditandoId).update(datosActualizar);
-            alert("¡Producto actualizado!");
+            const updateData = { titulo, precio };
+            if (urlImagen) updateData.imagenUrl = urlImagen;
+            await updateDoc(doc(db, "productos", productoEditandoId), updateData);
         } else {
-            if (!urlImagen) {
-                alert("Selecciona una imagen para el producto.");
-                btnAgregar.innerText = "Agregar Producto";
-                btnAgregar.disabled = false;
-                return;
-            }
-            await db.collection("productos").add({
-                titulo: titulo,
-                precio: Number(precio),
+            if (!urlImagen) throw new Error("Selecciona una imagen.");
+            await addDoc(productosRef, {
+                titulo,
+                precio,
                 imagenUrl: urlImagen,
-                fecha: firebase.firestore.FieldValue.serverTimestamp()
+                fecha: serverTimestamp()
             });
-            alert("¡Producto publicado!");
         }
-
         resetearFormulario();
         panelAdmin.classList.remove('open');
     } catch (error) {
-        alert("Error: " + error.message);
+        alert("Error de operación: Asegúrese de ser administrador.");
+        console.error(error);
     } finally {
-        btnAgregar.disabled = false;
+        btnSubmit.innerText = "Agregar Producto";
+        btnSubmit.disabled = false;
     }
 });
 
-// CARGA DE CATALOGO CON SPINNER
-function cargarProductos() {
-    db.collection("productos").orderBy("fecha", "desc").onSnapshot((querySnapshot) => {
-        loadingSpinner.style.display = "none";
+// --- 3. RENDERIZADO DEFENSIVO CONTRA XSS (A03 Mitigado) ---
+let unsubscribeCatalogo = null;
+
+function renderizarCatalogo() {
+    const q = query(productosRef, orderBy("fecha", "desc"));
+    
+    if (unsubscribeCatalogo) unsubscribeCatalogo(); // Limpiar listener anterior
+
+    unsubscribeCatalogo = onSnapshot(q, (snapshot) => {
+        document.getElementById('loading-spinner').style.display = "none";
         gridProductos.innerHTML = "";
-        
-        if (querySnapshot.empty) {
-            gridProductos.innerHTML = "<p style='grid-column:1/-1; text-align:center;'>No hay productos disponibles.</p>";
+
+        if (snapshot.empty) {
+            gridProductos.innerHTML = "<p style='text-align:center; grid-column:1/-1;'>Catálogo vacío.</p>";
             return;
         }
 
-        querySnapshot.forEach((doc) => {
-            const p = doc.data();
-            const id = doc.id;
+        snapshot.forEach((documento) => {
+            const p = documento.data();
+            const id = documento.id;
 
-            const accionesAdmin = esAdmin ? `
-                <div class="admin-actions">
-                    <button class="btn-share" onclick="compartirProducto('${p.titulo}', ${p.precio}, '${p.imagenUrl}')" title="Compartir en redes">🔗</button>
-                    <button class="btn-edit" onclick="prepararEdicion('${id}', '${p.titulo}', ${p.precio})">✏️</button>
-                    <button class="btn-del" onclick="eliminarProducto('${id}')">🗑️</button>
-                </div>
-            ` : '';
+            const card = document.createElement('div');
+            card.className = 'product-card';
 
-            const div = document.createElement('div');
-            div.className = 'product-card';
-            div.innerHTML = `
-                ${accionesAdmin}
-                <img src="${p.imagenUrl}" alt="${p.titulo}" class="product-img">
-                <div class="product-info">
-                    <h3 class="product-title">${p.titulo}</h3>
-                    <p class="product-price">$${p.precio}</p>
-                    <button class="btn-add-cart" onclick="agregarAlCarrito('${id}', '${p.titulo}', ${p.precio})">🛒 Agregar</button>
-                </div>
-            `;
-            gridProductos.appendChild(div);
+            // Construcción defensiva del DOM (No se usa innerHTML para datos del usuario)
+            const img = document.createElement('img');
+            img.src = p.imagenUrl || '';
+            img.alt = p.titulo;
+            img.className = 'product-img';
+
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'product-info';
+
+            const titleH3 = document.createElement('h3');
+            titleH3.className = 'product-title';
+            titleH3.textContent = p.titulo; // Prevención de XSS
+
+            const priceP = document.createElement('p');
+            priceP.className = 'product-price';
+            priceP.textContent = `$${p.precio}`;
+
+            const btnAdd = document.createElement('button');
+            btnAdd.className = 'btn-add-cart';
+            btnAdd.textContent = '🛒 Agregar';
+            btnAdd.onclick = () => agregarAlCarrito(id, p.titulo, p.precio);
+
+            infoDiv.append(titleH3, priceP, btnAdd);
+            card.append(img, infoDiv);
+
+            // Controles de Administrador
+            if (esAdmin) {
+                const adminDiv = document.createElement('div');
+                adminDiv.className = 'admin-actions';
+                
+                const btnEdit = document.createElement('button');
+                btnEdit.className = 'btn-edit';
+                btnEdit.textContent = '✏️';
+                btnEdit.onclick = () => prepararEdicion(id, p.titulo, p.precio);
+
+                const btnDel = document.createElement('button');
+                btnDel.className = 'btn-del';
+                btnDel.textContent = '🗑️';
+                btnDel.onclick = async () => {
+                    if (confirm("¿Eliminar publicación?")) await deleteDoc(doc(db, "productos", id));
+                };
+
+                adminDiv.append(btnEdit, btnDel);
+                card.prepend(adminDiv);
+            }
+            gridProductos.appendChild(card);
         });
     });
 }
 
-// CARRITO AGRUPADO CON CONTADORES
+// --- 4. LÓGICA DE CARRITO Y WHATSAPP (Mantenida e integrada) ---
 window.agregarAlCarrito = (id, titulo, precio) => {
     const existe = carrito.find(p => p.id === id);
-    if (existe) {
-        existe.cantidad += 1;
-    } else {
-        carrito.push({ id, titulo, precio, cantidad: 1 });
-    }
+    if (existe) existe.cantidad += 1;
+    else carrito.push({ id, titulo, precio, cantidad: 1 });
     actualizarCarritoUI();
 };
 
 function actualizarCarritoUI() {
     let cantidadTotal = 0;
     let precioTotal = 0;
+    const cartItemsContainer = document.getElementById('cart-items');
     cartItemsContainer.innerHTML = "";
 
     carrito.forEach((prod, index) => {
@@ -184,9 +217,13 @@ function actualizarCarritoUI() {
 
         const itemDiv = document.createElement('div');
         itemDiv.className = 'cart-item';
+        
+        const titleSpan = document.createElement('strong');
+        titleSpan.textContent = prod.titulo;
+        
         itemDiv.innerHTML = `
             <div class="cart-item-info">
-                <strong>${prod.titulo}</strong>
+                <div class="safe-title"></div>
                 <small>$${prod.precio} c/u</small>
             </div>
             <div class="cart-item-controls">
@@ -195,103 +232,61 @@ function actualizarCarritoUI() {
                 <button class="btn-qty" onclick="cambiarCantidad(${index}, 1)">+</button>
             </div>
         `;
+        // Inserción segura en un innerHTML mixto
+        itemDiv.querySelector('.safe-title').appendChild(titleSpan); 
         cartItemsContainer.appendChild(itemDiv);
     });
 
-    cartCountSpan.innerText = cantidadTotal;
-    cartTotalPriceSpan.innerText = precioTotal;
+    document.getElementById('cart-count').innerText = cantidadTotal;
+    document.getElementById('cart-total-price').innerText = precioTotal;
 }
 
 window.cambiarCantidad = (index, cambio) => {
     carrito[index].cantidad += cambio;
-    if (carrito[index].cantidad <= 0) {
-        carrito.splice(index, 1);
-    }
+    if (carrito[index].cantidad <= 0) carrito.splice(index, 1);
     actualizarCarritoUI();
 };
 
-btnCarritoFlotante.addEventListener('click', () => modalCarrito.classList.add('open'));
-btnCerrarCarrito.addEventListener('click', () => modalCarrito.classList.remove('open'));
+// Eventos de interfaz
+document.getElementById('btn-carrito-flotante').addEventListener('click', () => document.getElementById('modal-carrito').classList.add('open'));
+document.getElementById('btn-cerrar-carrito').addEventListener('click', () => document.getElementById('modal-carrito').classList.remove('open'));
+document.getElementById('btn-cerrar-admin').addEventListener('click', () => {
+    document.getElementById('panel-admin').classList.remove('open');
+    resetearFormulario();
+});
 
-btnEnviarPedidoWA.addEventListener('click', () => {
-    if (carrito.length === 0) {
-        alert("El carrito está vacío.");
-        return;
-    }
+document.getElementById('btn-enviar-pedido-wa').addEventListener('click', () => {
+    if (carrito.length === 0) return alert("Carrito vacío.");
     let texto = "Hola, me gustaría encargar los siguientes productos:\n\n";
     let total = 0;
     carrito.forEach(p => {
-        const subtotal = p.precio * p.cantidad;
-        texto += `- ${p.titulo} x${p.cantidad}: $${subtotal}\n`;
-        total += subtotal;
+        texto += `- ${p.titulo} x${p.cantidad}: $${p.precio * p.cantidad}\n`;
+        total += p.precio * p.cantidad;
     });
     texto += `\n*Total: $${total}*`;
-
-    const urlWA = `https://wa.me/${TELEFONO_WHATSAPP}?text=${encodeURIComponent(texto)}`;
-    window.open(urlWA, '_blank');
+    window.open(`https://wa.me/${TELEFONO_WHATSAPP}?text=${encodeURIComponent(texto)}`, '_blank');
 });
 
-// EDICION Y BORRADO
-window.prepararEdicion = (id, titulo, precio) => {
+function prepararEdicion(id, titulo, precio) {
     productoEditandoId = id;
-    inputTitulo.value = titulo;
-    inputPrecio.value = precio;
-    labelImagen.innerText = "📷 Cambiar foto (opcional)";
-    btnAgregar.innerText = "Guardar Cambios";
+    document.getElementById('input-titulo').value = titulo;
+    document.getElementById('input-precio').value = precio;
+    document.getElementById('btn-agregar-producto').innerText = "Guardar Cambios";
     panelAdmin.classList.add('open');
-};
-
-window.eliminarProducto = async (id) => {
-    if (confirm("¿Estás seguro de eliminar esta publicación?")) {
-        await db.collection("productos").doc(id).delete();
-    }
-};
+}
 
 function resetearFormulario() {
     productoEditandoId = null;
-    inputImagen.value = "";
-    inputTitulo.value = "";
-    inputPrecio.value = "";
-    labelImagen.innerText = "📸 Seleccionar foto";
-    btnAgregar.innerText = "Agregar Producto";
+    document.getElementById('img-file').value = "";
+    document.getElementById('input-titulo').value = "";
+    document.getElementById('input-precio').value = "";
+    document.getElementById('btn-agregar-producto').innerText = "Agregar Producto";
 }
 
-// FUNCIONALIDAD COMPARTIR CON FOTO Y ENLACE LIMPIO
-window.compartirProducto = async (titulo, precio, imagenUrl) => {
-    const urlTienda = window.location.href;
-    const textoCompartir = `✨ ¡Mirá este producto en Begus!\n📌 ${titulo} - $${precio}\n👉 Catálogo completo acá: ${urlTienda}`;
+// UI Setup inicial
+document.getElementById('img-file').addEventListener('change', (e) => {
+    const lbl = document.querySelector('.file-upload-label');
+    lbl.innerText = e.target.files.length > 0 ? "✅ Foto seleccionada" : "📸 Seleccionar foto";
+});
 
-    try {
-        const response = await fetch(imagenUrl);
-        const blob = await response.blob();
-        const file = new File([blob], 'producto.jpg', { type: blob.type });
-
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-            await navigator.share({
-                title: `${titulo} - Begus`,
-                text: textoCompartir,
-                files: [file]
-            });
-            return;
-        }
-    } catch (error) {
-        console.log("No se pudo adjuntar la foto, enviando solo texto...", error);
-    }
-
-    if (navigator.share) {
-        try {
-            await navigator.share({
-                title: `${titulo} - Begus`,
-                text: textoCompartir,
-                url: urlTienda
-            });
-        } catch (err) {
-            console.log("Compartir cancelado.");
-        }
-    } else {
-        navigator.clipboard.writeText(textoCompartir);
-        alert("¡Enlace y texto copiados al portapapeles!");
-    }
-};
-
-cargarProductos();
+renderizarCatalogo();
