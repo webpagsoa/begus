@@ -113,21 +113,34 @@ async function solicitarAccesoAdmin() {
     }
 }
 
-// Subida Gratuita de Fotos a ImgBB
+// Subida Gratuita de Fotos a ImgBB con control de errores detallado
 async function subirFotoImgBB(file) {
+    // 1. Validar tamaño máximo (ImgBB acepta hasta 32 MB en API, pero limitamos a 10 MB por rendimiento)
+    const maxMB = 10;
+    if (file.size > maxMB * 1024 * 1024) {
+        throw new Error(`La foto es muy pesada (${(file.size / (1024 * 1024)).toFixed(1)} MB). Intenta con una de menos de ${maxMB} MB.`);
+    }
+
     const formData = new FormData();
     formData.append('image', file);
 
-    const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
-        method: 'POST',
-        body: formData
-    });
+    try {
+        const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
+            method: 'POST',
+            body: formData
+        });
 
-    const result = await response.json();
-    if (result.success) {
-        return result.data.url;
-    } else {
-        throw new Error("No se pudo subir la imagen a ImgBB.");
+        const result = await response.json();
+
+        if (result.success) {
+            return result.data.url;
+        } else {
+            const detalle = result.error?.message || "Respuesta rechazada por la API";
+            throw new Error(`ImgBB rechazó la imagen: ${detalle}`);
+        }
+    } catch (err) {
+        console.error("[ImgBB Upload Error]:", err);
+        throw new Error(err.message || "Error de red al conectar con ImgBB.");
     }
 }
 
