@@ -42,12 +42,3 @@
     background: var(--accent-gold);
     color: #000;
 }
-
-/* --- ASEGURAR VISIBILIDAD DE PANELES AL ABRIR --- */
-.admin-panel.open {
-    right: 0 !important;
-}
-
-.modal-overlay.open {
-    display: flex !important;
-}
