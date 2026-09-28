@@ -4,40 +4,29 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Begus</title>
-    <link rel="stylesheet" href="style.css">
-    <!-- Meta Etiquetas Open Graph para Redes Sociales -->
+    <link rel="stylesheet" href="style_3.css">
     <meta property="og:title" content="Begus - Catálogo Online">
     <meta property="og:description" content="Explorá nuestros productos y hacé tu pedido por WhatsApp.">
-    <meta property="og:image" content="https://TU_USUARIO.github.io/begus/logo.jpg">
     <meta property="og:type" content="website">
 </head>
 <body>
+    <header class="navbar">
+        <button id="btn-abrir-admin" class="btn-admin">🔑 Admin</button>
+    </header>
 
-   <!-- Encabezado Limpio con Banner -->
-<header class="navbar">
-    <div class="logo-container">
-        <h1 class="brand-title">BEGUS</h1>
-    </div>
-    <button id="btn-abrir-admin" class="btn-admin">🔑 Admin</button>
-</header>
-
-    <!-- Catálogo de Productos -->
     <main class="container">
-        <!-- Spinner de Carga -->
         <div id="loading-spinner" class="spinner-container">
             <div class="spinner"></div>
             <p>Cargando catálogo...</p>
         </div>
-
         <div id="grid-productos" class="product-grid"></div>
     </main>
 
-    <!-- Botón Flotante del Carrito -->
     <div id="btn-carrito-flotante" class="cart-floating-btn">
         🛒 <span id="cart-count">0</span>
     </div>
 
-    <!-- Modal del Carrito -->
+    <!-- Modal del Carrito (Sin cambios estructurales) -->
     <div id="modal-carrito" class="modal-overlay">
         <div class="modal-content">
             <div class="modal-header">
@@ -75,9 +64,7 @@
         <button id="btn-agregar-producto" class="btn-submit">Agregar Producto</button>
     </div>
 
-    <!-- Firebase y Lógica -->
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-    <script src="app.js"></script>
+    <!-- Importación de script como módulo ES6 -->
+    <script type="module" src="app_3.js"></script>
 </body>
 </html>
