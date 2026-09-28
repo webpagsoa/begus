@@ -4,67 +4,49 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Begus</title>
-    <link rel="stylesheet" href="style_3.css">
-    <meta property="og:title" content="Begus - Catálogo Online">
-    <meta property="og:description" content="Explorá nuestros productos y hacé tu pedido por WhatsApp.">
-    <meta property="og:type" content="website">
+
+    <!-- Encabezado de Seguridad CSP (Sección 1 - Manual de Referencia Técnica) -->
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self'; 
+        script-src 'self' https://www.gstatic.com; 
+        style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; 
+        font-src 'self' https://fonts.gstatic.com; 
+        img-src 'self' data: https:; 
+        connect-src 'self' https://*.firebaseio.com https://*.googleapis.com;
+    ">
+
+    <!-- Normalización de la hoja de estilos principal -->
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <header class="navbar">
-        <button id="btn-abrir-admin" class="btn-admin">🔑 Admin</button>
+
+    <!-- Encabezado y Navegación Principal -->
+    <header class="main-header">
+        <div class="logo-container">
+            <h1>Begus</h1>
+        </div>
+        <button id="btn-abrir-admin" class="btn-primary">🔑 Admin</button>
     </header>
 
+    <!-- Modal / Panel de Administración -->
+    <aside id="panel-admin" class="panel-admin">
+        <h2>Gestión de Catálogo</h2>
+        <form id="form-producto">
+            <input type="text" id="input-nombre" placeholder="Nombre del producto" required>
+            <input type="number" id="input-precio" step="0.01" placeholder="Precio ($)" required>
+            <input type="url" id="input-imagen-url" placeholder="URL de la imagen (Ej: ImgBB / Drive)" required>
+            <button type="submit" class="btn-success">Guardar Producto</button>
+        </form>
+    </aside>
+
+    <!-- Grilla del Catálogo de Productos -->
     <main class="container">
-        <div id="loading-spinner" class="spinner-container">
-            <div class="spinner"></div>
-            <p>Cargando catálogo...</p>
-        </div>
-        <div id="grid-productos" class="product-grid"></div>
+        <section id="catalogo-productos" class="catalogo-grid">
+            <!-- Los productos se renderizan dinámicamente desde app.js -->
+        </section>
     </main>
 
-    <div id="btn-carrito-flotante" class="cart-floating-btn">
-        🛒 <span id="cart-count">0</span>
-    </div>
-
-    <!-- Modal del Carrito (Sin cambios estructurales) -->
-    <div id="modal-carrito" class="modal-overlay">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Tu Carrito</h2>
-                <button id="btn-cerrar-carrito" class="btn-close">&times;</button>
-            </div>
-            <div id="cart-items" class="cart-items-list"></div>
-            <div class="cart-footer">
-                <p class="cart-total">Total: $<span id="cart-total-price">0</span></p>
-                <button id="btn-enviar-pedido-wa" class="btn-wa-checkout">💬 Enviar Pedido por WhatsApp</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Panel de Administración Lateral -->
-    <div id="panel-admin" class="admin-panel">
-        <div class="panel-header">
-            <h2 id="modal-title">Agregar Producto</h2>
-            <button id="btn-cerrar-admin" class="btn-close">&times;</button>
-        </div>
-        
-        <div class="form-group">
-            <input type="file" id="img-file" accept="image/*" class="file-input">
-            <label for="img-file" class="file-upload-label">📸 Seleccionar foto</label>
-        </div>
-        
-        <div class="form-group">
-            <input type="text" id="input-titulo" placeholder="Título del producto">
-        </div>
-
-        <div class="form-group">
-            <input type="number" id="input-precio" placeholder="Precio ($)">
-        </div>
-
-        <button id="btn-agregar-producto" class="btn-submit">Agregar Producto</button>
-    </div>
-
-    <!-- Importación de script como módulo ES6 -->
-    <script type="module" src="app_3.js"></script>
+    <!-- Importación canónica del script como módulo ES6 -->
+    <script type="module" src="app.js"></script>
 </body>
 </html>
