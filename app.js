@@ -22,7 +22,7 @@ const auth = firebase.auth();
 
 // Constantes
 const ADMIN_EMAIL = "5493725401808@begus.internal";
-const IMGBB_API_KEY = "3052862c887588cf31c3baec2a6eb3f0";
+const IMGBB_API_KEY = "8b1e7ee85535999790ddf28a341c8927"; // Nueva clave insertada
 const WHATSAPP_NUMBER = "5493725401808";
 
 let esAdmin = false;
@@ -123,9 +123,11 @@ async function subirFotoImgBB(file) {
 
     const formData = new FormData();
     formData.append('image', file);
+    formData.append('key', IMGBB_API_KEY); // Añadimos la clave directamente al formulario
 
-try {
-        const response = await fetch('https://api.imgbb.com/1/upload?key=3052862c887588cf31c3baec2a6eb3f0', {
+    try {
+        // Hacemos el POST sin parámetros raros en la URL
+        const response = await fetch('https://api.imgbb.com/1/upload', {
             method: 'POST',
             body: formData
         });
