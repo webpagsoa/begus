@@ -209,8 +209,6 @@ body {
     backdrop-filter: blur(4px);
 }
 
-.modal-overlay.open { display: flex; }
-
 .modal-content {
     background: #1e1e1e;
     color: var(--text-main);
@@ -282,7 +280,8 @@ body {
 /* --- PANEL ADMIN LATERAL --- */
 .admin-panel {
     position: fixed;
-    top: 0; right: -100%;
+    top: 0; 
+    right: -100%;
     width: 100%;
     max-width: var(--panel-width);
     height: 100%;
@@ -293,8 +292,6 @@ body {
     transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     padding: 20px;
 }
-
-.admin-panel.open { right: 0; }
 
 .form-group { margin-bottom: 15px; }
 
@@ -330,4 +327,13 @@ body {
     border-radius: 6px;
     font-weight: bold;
     cursor: pointer;
+}
+
+/* --- ASEGURAR VISIBILIDAD DE PANELES AL ABRIR --- */
+.admin-panel.open {
+    right: 0 !important;
+}
+
+.modal-overlay.open {
+    display: flex !important;
 }
