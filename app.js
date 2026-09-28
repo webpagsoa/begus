@@ -124,8 +124,8 @@ async function subirFotoImgBB(file) {
     const formData = new FormData();
     formData.append('image', file);
 
-    try {
-        const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
+try {
+        const response = await fetch('https://api.imgbb.com/1/upload?key=3052862c887588cf31c3baec2a6eb3f0', {
             method: 'POST',
             body: formData
         });
