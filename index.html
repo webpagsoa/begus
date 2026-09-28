@@ -3,82 +3,79 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Begus - Catálogo</title>
-
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#1a1a1a">
-
-    <!-- Configuración de Seguridad CSP (Sección 1 - Manual de Referencia Técnica) -->
-    <meta http-equiv="Content-Security-Policy" content="
-        default-src 'self'; 
-        script-src 'self' https://www.gstatic.com; 
-        style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; 
-        font-src 'self' https://fonts.gstatic.com; 
-        img-src 'self' data: https:; 
-        connect-src 'self' https://*.firebaseio.com https://*.googleapis.com;
-    ">
-
+    <title>Begus</title>
     <link rel="stylesheet" href="style.css">
+    <!-- Meta Etiquetas Open Graph para Redes Sociales -->
+    <meta property="og:title" content="Begus - Catálogo Online">
+    <meta property="og:description" content="Explorá nuestros productos y hacé tu pedido por WhatsApp.">
+    <meta property="og:image" content="https://TU_USUARIO.github.io/begus/logo.jpg">
+    <meta property="og:type" content="website">
 </head>
 <body>
 
-    <!-- Encabezado Principal -->
-    <header class="main-header">
-        <div class="header-container">
-            <h1 class="brand-logo">Begus</h1>
-            <button id="btn-abrir-admin" class="btn-admin">🔑 Admin</button>
-        </div>
+   <!-- Encabezado Limpio con Banner -->
+    <header class="navbar">
+        <button id="btn-abrir-admin" class="btn-admin">🔑 Admin</button>
     </header>
 
-    <!-- Overlay de Fondo para el Panel Admin -->
-    <div id="admin-overlay" class="admin-overlay"></div>
-
-    <!-- Panel Modal Desplazable de Administración -->
-    <aside id="panel-admin" class="panel-admin">
-        <div class="panel-header">
-            <h2>Gestión de Catálogo</h2>
-            <button id="btn-cerrar-panel" class="btn-close">&times;</button>
+    <!-- Catálogo de Productos -->
+    <main class="container">
+        <!-- Spinner de Carga -->
+        <div id="loading-spinner" class="spinner-container">
+            <div class="spinner"></div>
+            <p>Cargando catálogo...</p>
         </div>
-        <form id="form-producto" class="admin-form">
-            <div class="form-group">
-                <label for="input-nombre">Nombre del Producto</label>
-                <input type="text" id="input-nombre" placeholder="Ej: Tapado Lora" required autocomplete="off">
-            </div>
-            <div class="form-group">
-                <label for="input-precio">Precio ($)</label>
-                <input type="number" id="input-precio" step="0.01" placeholder="Ej: 15000" required autocomplete="off">
-            </div>
-            <div class="form-group">
-                <label for="input-imagen-url">URL de Imagen</label>
-                <input type="url" id="input-imagen-url" placeholder="https://..." required autocomplete="off">
-            </div>
-            <button type="submit" class="btn-submit">Guardar Producto</button>
-        </form>
-    </aside>
 
-    <!-- Contenedor Principal / Hero & Catálogo -->
-    <main class="main-content">
-        <section class="hero-section">
-            <div class="hero-overlay"></div>
-            <div class="hero-title-container">
-                <h2 class="hero-title">Begus</h2>
-            </div>
-        </section>
-
-        <section class="container">
-            <div id="catalogo-productos" class="catalogo-grid">
-                <!-- Productos renderizados dinámicamente -->
-            </div>
-        </section>
+        <div id="grid-productos" class="product-grid"></div>
     </main>
 
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('sw.js').catch(console.error);
-            });
-        }
-    </script>
-    <script type="module" src="app.js"></script>
+    <!-- Botón Flotante del Carrito -->
+    <div id="btn-carrito-flotante" class="cart-floating-btn">
+        🛒 <span id="cart-count">0</span>
+    </div>
+
+    <!-- Modal del Carrito -->
+    <div id="modal-carrito" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Tu Carrito</h2>
+                <button id="btn-cerrar-carrito" class="btn-close">&times;</button>
+            </div>
+            <div id="cart-items" class="cart-items-list"></div>
+            <div class="cart-footer">
+                <p class="cart-total">Total: $<span id="cart-total-price">0</span></p>
+                <button id="btn-enviar-pedido-wa" class="btn-wa-checkout">💬 Enviar Pedido por WhatsApp</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Panel de Administración Lateral -->
+    <div id="panel-admin" class="admin-panel">
+        <div class="panel-header">
+            <h2 id="modal-title">Agregar Producto</h2>
+            <button id="btn-cerrar-admin" class="btn-close">&times;</button>
+        </div>
+        
+        <div class="form-group">
+            <input type="file" id="img-file" accept="image/*" class="file-input">
+            <label for="img-file" class="file-upload-label">📸 Seleccionar foto</label>
+        </div>
+        
+        <div class="form-group">
+            <input type="text" id="input-titulo" placeholder="Título del producto">
+        </div>
+
+        <div class="form-group">
+            <input type="number" id="input-precio" placeholder="Precio ($)">
+        </div>
+
+        <button id="btn-agregar-producto" class="btn-submit">Agregar Producto</button>
+    </div>
+
+    <!-- Firebase y Lógica -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>
