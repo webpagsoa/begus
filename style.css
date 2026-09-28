@@ -1,3 +1,34 @@
+/* --- VARIABLES Y RESET (CLEAN CODE) --- */
+:root {
+    --bg-dark: #121212;
+    --card-bg: rgba(30, 30, 30, 0.85);
+    --accent-color: #25d366; /* Verde WhatsApp / Acento */
+    --accent-gold: #d4af37;
+    --text-main: #f5f5f5;
+    --text-muted: #a0a0a0;
+    --overlay-bg: rgba(0, 0, 0, 0.6);
+    --panel-width: 350px;
+    --border-radius: 8px;
+    --transition-fast: 0.2s ease;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+body {
+    background-image: url('fondo.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    color: var(--text-main);
+    padding-bottom: 80px;
+}
+
 /* --- HEADER / NAVBAR --- */
 .navbar {
     background-image: url('banner.jpg');
@@ -41,4 +72,283 @@
 .btn-admin:hover {
     background: var(--accent-gold);
     color: #000;
+}
+
+/* --- SPINNER DE CARGA --- */
+.spinner-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 0;
+    color: var(--text-muted);
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(255, 255, 255, 0.1);
+    border-top: 4px solid var(--accent-gold);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 12px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* --- GRILLA Y TARJETAS DE PRODUCTOS --- */
+.container {
+    max-width: 1000px;
+    margin: 20px auto;
+    padding: 0 15px;
+}
+
+.product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 15px;
+}
+
+.product-card {
+    background-color: var(--card-bg);
+    backdrop-filter: blur(8px);
+    border-radius: var(--border-radius);
+    padding: 6px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    transition: transform var(--transition-fast);
+}
+
+.product-card:hover {
+    transform: translateY(-3px);
+}
+
+.product-img {
+    width: 100%;
+    height: 180px;
+    object-fit: cover;
+    border-radius: 6px;
+    display: block;
+}
+
+.product-info {
+    padding: 8px 4px 4px 4px;
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+}
+
+.product-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: var(--text-main);
+}
+
+.product-price {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--accent-gold);
+    margin-bottom: 8px;
+}
+
+.btn-add-cart {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: var(--text-main);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 8px;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: auto;
+    transition: var(--transition-fast);
+}
+
+.btn-add-cart:hover {
+    background-color: var(--text-main);
+    color: #000;
+}
+
+/* --- ACCIONES ADMIN SOBRE LA TARJETA --- */
+.admin-actions {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: flex;
+    gap: 5px;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    padding: 4px 6px;
+    border-radius: 6px;
+}
+
+.btn-share, .btn-edit, .btn-del {
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+    padding: 2px;
+}
+
+/* --- CARRITO FLOTANTE Y MODAL --- */
+.cart-floating-btn {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background-color: var(--accent-color);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 30px;
+    font-weight: bold;
+    font-size: 1.1rem;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+    cursor: pointer;
+    z-index: 100;
+}
+
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--overlay-bg);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 200;
+    backdrop-filter: blur(4px);
+}
+
+.modal-content {
+    background: #1e1e1e;
+    color: var(--text-main);
+    width: 90%;
+    max-width: 420px;
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.modal-header, .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.btn-close {
+    background: none;
+    border: none;
+    color: var(--text-main);
+    font-size: 1.5rem;
+    cursor: pointer;
+}
+
+.cart-items-list {
+    max-height: 250px;
+    overflow-y: auto;
+    margin-bottom: 15px;
+}
+
+.cart-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.cart-item-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-qty {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-main);
+    border: none;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.btn-wa-checkout {
+    width: 100%;
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+    padding: 12px;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-top: 10px;
+}
+
+/* --- PANEL ADMIN LATERAL --- */
+.admin-panel {
+    position: fixed;
+    top: 0; 
+    right: -100%;
+    width: 100%;
+    max-width: var(--panel-width);
+    height: 100%;
+    background: #1e1e1e;
+    color: var(--text-main);
+    box-shadow: -5px 0 25px rgba(0,0,0,0.8);
+    z-index: 300;
+    transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    padding: 20px;
+}
+
+.form-group { margin-bottom: 15px; }
+
+.form-group input[type="text"],
+.form-group input[type="number"] {
+    width: 100%;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    color: var(--text-main);
+}
+
+.file-input { display: none; }
+
+.file-upload-label {
+    display: block;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-muted);
+    text-align: center;
+    padding: 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    border: 1px dashed rgba(255, 255, 255, 0.3);
+}
+
+.btn-submit {
+    width: 100%;
+    background: var(--accent-gold);
+    color: #000;
+    border: none;
+    padding: 12px;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+/* --- ASEGURAR VISIBILIDAD DE PANELES AL ABRIR --- */
+.admin-panel.open {
+    right: 0 !important;
+}
+
+.modal-overlay.open {
+    display: flex !important;
 }
