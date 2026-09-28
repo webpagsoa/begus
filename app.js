@@ -1,10 +1,8 @@
 /**
- * Módulo Principal - Begus Web App
- * Arquitectura: Single Page Application (SPA) Vanilla JS + Firebase 10+ (Compat CDN)
- * Estándares: OWASP A03 (XSS), OWASP A07 (Auth) & Clean Code (Try-Catch-Finally)
+ * Begus Web App - Catálogo con Firestore + ImgBB
  */
 
-// 1. Configuración Pública de Firebase
+// 1. Configuración de Firebase
 const firebaseConfig = {
     apiKey: "AIzaSyDnl23nvPG7hoMV0fE2NYJR7dWY-msEIcI",
     authDomain: "begus-4a593.firebaseapp.com",
@@ -15,22 +13,22 @@ const firebaseConfig = {
     measurementId: "G-EQ9JV2DCC2"
 };
 
-// 2. Inicialización Segura de Servicios
+// 2. Inicialización de Firebase
 if (!firebase.apps.length) {
     firebase.initializeApp(firebaseConfig);
 }
 const db = firebase.firestore();
 const auth = firebase.auth();
 
-// Constantes de Integración
+// Constantes
 const ADMIN_EMAIL = "5493725401808@begus.internal";
 const IMGBB_API_KEY = "3052862c887588cf31c3baec2a6eb3f0";
+const WHATSAPP_NUMBER = "5493725401808";
 
 let esAdmin = false;
+let carrito = [];
 
-/**
- * Sanitización estricta para prevenir Inyección XSS (OWASP A03)
- */
+// Sanitización contra XSS
 function sanitizarHTML(cadena) {
     if (typeof cadena !== 'string') return '';
     const div = document.createElement('div');
@@ -38,80 +36,65 @@ function sanitizarHTML(cadena) {
     return div.innerHTML;
 }
 
-/**
- * Control Centralizado del Spinner / Loader (Evita congelamientos en la UI)
- */
+// Control del Spinner de Carga
 function alternarCargando(mostrar) {
-    // Buscar cualquier loader existente por ID o Clase
-    const loaders = document.querySelectorAll('#loading-overlay, #loader-catalogo, .loading-spinner, .spinner');
-    loaders.forEach(loader => {
-        loader.style.display = mostrar ? 'flex' : 'none';
-    });
-
-    // Si hay un contenedor de texto "Cargando catálogo...", ocultarlo/mostrarlo
-    const textoCargando = Array.from(document.querySelectorAll('div, p')).find(el => el.textContent.includes('Cargando catálogo...'));
-    if (textoCargando && !mostrar) {
-        textoCargando.style.display = 'none';
+    const spinner = document.getElementById('loading-spinner');
+    if (spinner) {
+        spinner.style.display = mostrar ? 'flex' : 'none';
     }
 }
 
-/**
- * Carga e Inyección del Catálogo desde Firestore (Con Manejo de Excepciones)
- */
+// Cargar Catálogo desde Firestore
 async function cargarCatalogo() {
     alternarCargando(true);
-    const contenedor = document.getElementById('catalogo-productos') || document.querySelector('.catalogo') || document.querySelector('main');
+    const grid = document.getElementById('grid-productos');
 
     try {
         const snapshot = await db.collection('productos').get();
-        
-        if (contenedor) {
-            // No sobrescribir la estructura principal si es la raíz
-            const grid = document.getElementById('grid-productos') || contenedor;
-            grid.innerHTML = '';
+        if (!grid) return;
 
-            if (snapshot.empty) {
-                grid.innerHTML = '<p class="estado-vacio" style="text-align:center; padding: 2rem;">No hay productos publicados en el catálogo.</p>';
-            } else {
-                snapshot.forEach(doc => {
-                    const item = doc.data();
-                    const tarjeta = document.createElement('article');
-                    tarjeta.className = 'card-producto';
-                    tarjeta.innerHTML = `
-                        <div class="card-img-container">
-                            <img src="${sanitizarHTML(item.imagenUrl)}" alt="${sanitizarHTML(item.nombre)}" loading="lazy" style="max-width:100%; height:auto;">
-                        </div>
-                        <div class="card-body">
-                            <h3>${sanitizarHTML(item.nombre)}</h3>
-                            <p class="precio">$${Number(item.precio || 0).toLocaleString('es-AR')}</p>
-                        </div>
-                    `;
-                    grid.appendChild(tarjeta);
-                });
-            }
+        grid.innerHTML = '';
+
+        if (snapshot.empty) {
+            grid.innerHTML = '<p style="grid-column: 1/-1; text-align:center; padding: 2rem;">No hay productos publicados en el catálogo.</p>';
+        } else {
+            snapshot.forEach(doc => {
+                const item = doc.data();
+                const tarjeta = document.createElement('article');
+                tarjeta.className = 'product-card';
+                
+                let botonBorrar = esAdmin 
+                    ? `<button class="btn-del" onclick="eliminarProducto('${doc.id}')" title="Eliminar">🗑️</button>` 
+                    : '';
+
+                tarjeta.innerHTML = `
+                    <div style="position: relative;">
+                        <img src="${sanitizarHTML(item.imagenUrl)}" alt="${sanitizarHTML(item.nombre)}" class="product-img" loading="lazy">
+                        ${botonBorrar ? `<div class="admin-actions">${botonBorrar}</div>` : ''}
+                    </div>
+                    <div class="product-info">
+                        <h3 class="product-title">${sanitizarHTML(item.nombre)}</h3>
+                        <p class="product-price">$${Number(item.precio || 0).toLocaleString('es-AR')}</p>
+                        <button class="btn-add-cart" onclick="agregarAlCarrito('${doc.id}', '${sanitizarHTML(item.nombre)}', ${item.precio})">🛒 Agregar al Carrito</button>
+                    </div>
+                `;
+                grid.appendChild(tarjeta);
+            });
         }
     } catch (error) {
-        console.error("[Begus Engine] Error crítico al obtener Firestore:", error);
-        if (contenedor) {
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'error-banner';
-            errorDiv.style.cssText = 'color: #ff4d4d; text-align: center; padding: 1rem;';
-            errorDiv.innerHTML = `<p>⚠️ No se pudo conectar con el catálogo. Verifique su conexión.</p>`;
-            contenedor.appendChild(errorDiv);
+        console.error("Error al cargar productos:", error);
+        if (grid) {
+            grid.innerHTML = `<p style="grid-column: 1/-1; color: #ff4d4d; text-align: center;">Error al cargar el catálogo: ${error.message}</p>`;
         }
     } finally {
-        // GARANTÍA: El loader SIEMPRE se apaga sin importar si hubo éxito o error
         alternarCargando(false);
     }
 }
 
-/**
- * Gestión de Autenticación de Administrador
- */
+// Autenticación de Administrador
 async function solicitarAccesoAdmin() {
     if (esAdmin) {
-        const panelAdmin = document.getElementById('panel-admin');
-        panelAdmin?.classList.remove('hidden');
+        document.getElementById('panel-admin')?.classList.add('open');
         return;
     }
 
@@ -123,23 +106,14 @@ async function solicitarAccesoAdmin() {
         await auth.signInWithEmailAndPassword(ADMIN_EMAIL, claveIngresada.trim());
         alert("Autenticación exitosa.");
     } catch (error) {
-        console.error("[Begus Auth Error]:", error.code, error.message);
-        
-        if (error.code === 'auth/operation-not-allowed') {
-            alert("Error de Configuración: Debes habilitar 'Correo electrónico/Contraseña' en Firebase Console > Authentication > Sign-in method.");
-        } else if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
-            alert("Credenciales inválidas. Verifique la contraseña ingresada.");
-        } else {
-            alert("Error al iniciar sesión: " + error.message);
-        }
+        console.error("Error Auth:", error);
+        alert("Credenciales inválidas o error de conexión.");
     } finally {
         alternarCargando(false);
     }
 }
 
-/**
- * Subida de fotos directamente desde la cámara/galería a ImgBB (Gratuito)
- */
+// Subida Gratuita de Fotos a ImgBB
 async function subirFotoImgBB(file) {
     const formData = new FormData();
     formData.append('image', file);
@@ -153,13 +127,105 @@ async function subirFotoImgBB(file) {
     if (result.success) {
         return result.data.url;
     } else {
-        throw new Error("No se pudo subir la imagen al servidor externo.");
+        throw new Error("No se pudo subir la imagen a ImgBB.");
     }
 }
 
-/**
- * Escuchador de estado de Sesión Firebase
- */
+// Eliminar producto
+async function eliminarProducto(id) {
+    if (!esAdmin) return;
+    if (confirm("¿Seguro que deseas eliminar este producto?")) {
+        try {
+            alternarCargando(true);
+            await db.collection('productos').doc(id).delete();
+            await cargarCatalogo();
+        } catch (err) {
+            alert("Error al eliminar: " + err.message);
+        } finally {
+            alternarCargando(false);
+        }
+    }
+}
+
+// Lógica del Carrito
+function agregarAlCarrito(id, nombre, precio) {
+    const existe = carrito.find(item => item.id === id);
+    if (existe) {
+        existe.cantidad += 1;
+    } else {
+        carrito.push({ id, nombre, precio, cantidad: 1 });
+    }
+    actualizarCarritoUI();
+}
+
+function cambiarCantidad(id, cambio) {
+    const item = carrito.find(i => i.id === id);
+    if (!item) return;
+
+    item.cantidad += cambio;
+    if (item.cantidad <= 0) {
+        carrito = carrito.filter(i => i.id !== id);
+    }
+    actualizarCarritoUI();
+}
+
+function actualizarCarritoUI() {
+    const countEl = document.getElementById('cart-count');
+    const itemsEl = document.getElementById('cart-items');
+    const totalEl = document.getElementById('cart-total-price');
+
+    const totalItems = carrito.reduce((acc, item) => acc + item.cantidad, 0);
+    const totalPrecio = carrito.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
+
+    if (countEl) countEl.textContent = totalItems;
+    if (totalEl) totalEl.textContent = totalPrecio.toLocaleString('es-AR');
+
+    if (itemsEl) {
+        itemsEl.innerHTML = '';
+        if (carrito.length === 0) {
+            itemsEl.innerHTML = '<p style="text-align:center; padding:1rem;">El carrito está vacío.</p>';
+        } else {
+            carrito.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'cart-item';
+                div.innerHTML = `
+                    <div>
+                        <strong>${sanitizarHTML(item.nombre)}</strong>
+                        <div>$${(item.precio * item.cantidad).toLocaleString('es-AR')}</div>
+                    </div>
+                    <div class="cart-item-controls">
+                        <button class="btn-qty" onclick="cambiarCantidad('${item.id}', -1)">-</button>
+                        <span>${item.cantidad}</span>
+                        <button class="btn-qty" onclick="cambiarCantidad('${item.id}', 1)">+</button>
+                    </div>
+                `;
+                itemsEl.appendChild(div);
+            });
+        }
+    }
+}
+
+function enviarPedidoWhatsApp() {
+    if (carrito.length === 0) {
+        alert("El carrito está vacío.");
+        return;
+    }
+
+    let mensaje = "Hola! Quisiera realizar el siguiente pedido:\n\n";
+    let total = 0;
+
+    carrito.forEach(item => {
+        const subtotal = item.precio * item.cantidad;
+        total += subtotal;
+        mensaje += `• ${item.nombre} x${item.cantidad} - $${subtotal.toLocaleString('es-AR')}\n`;
+    });
+
+    mensaje += `\n*Total: $${total.toLocaleString('es-AR')}*`;
+    const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(mensaje)}`;
+    window.open(url, '_blank');
+}
+
+// Estado de Sesión en Firebase
 auth.onAuthStateChanged((user) => {
     const btnAbrirAdmin = document.getElementById('btn-abrir-admin');
     const panelAdmin = document.getElementById('panel-admin');
@@ -167,55 +233,67 @@ auth.onAuthStateChanged((user) => {
     if (user && user.email === ADMIN_EMAIL) {
         esAdmin = true;
         if (btnAbrirAdmin) btnAbrirAdmin.textContent = "⚙️ Panel Admin";
-        panelAdmin?.classList.remove('hidden');
+        panelAdmin?.classList.add('open');
     } else {
         esAdmin = false;
-        if (btnAbrirAdmin) btnAbrirAdmin.textContent = "🔑 Iniciar Sesión";
-        panelAdmin?.classList.add('hidden');
+        if (btnAbrirAdmin) btnAbrirAdmin.textContent = "🔑 Admin";
+        panelAdmin?.classList.remove('open');
     }
+    cargarCatalogo();
 });
 
-/**
- * Inicialización Segura del DOM
- */
+// Inicialización de Eventos DOM
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Vincular eventos de forma defensiva (evita Runtime Exceptions que rompen el Header)
     const btnAbrirAdmin = document.getElementById('btn-abrir-admin');
     const btnCerrarAdmin = document.getElementById('btn-cerrar-admin');
     const panelAdmin = document.getElementById('panel-admin');
     const formProducto = document.getElementById('form-producto');
+    const inputImagen = document.getElementById('input-imagen-file');
+    const labelImagen = document.getElementById('label-imagen');
+
+    const btnCarrito = document.getElementById('btn-carrito-flotante');
+    const btnCerrarCarrito = document.getElementById('btn-cerrar-carrito');
+    const modalCarrito = document.getElementById('modal-carrito');
+    const btnEnviarWA = document.getElementById('btn-enviar-pedido-wa');
 
     btnAbrirAdmin?.addEventListener('click', solicitarAccesoAdmin);
-    btnCerrarAdmin?.addEventListener('click', () => panelAdmin?.classList.add('hidden'));
+    btnCerrarAdmin?.addEventListener('click', () => panelAdmin?.classList.remove('open'));
 
-    // 2. Evento del Formulario de Productos
+    btnCarrito?.addEventListener('click', () => modalCarrito?.classList.add('open'));
+    btnCerrarCarrito?.addEventListener('click', () => modalCarrito?.classList.remove('open'));
+    btnEnviarWA?.addEventListener('click', enviarPedidoWhatsApp);
+
+    inputImagen?.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file && labelImagen) {
+            labelImagen.textContent = `📷 ${file.name}`;
+        }
+    });
+
     formProducto?.addEventListener('submit', async (e) => {
         e.preventDefault();
 
         if (!esAdmin) {
-            alert("Acceso denegado.");
+            alert("Debes iniciar sesión como administrador.");
             return;
         }
 
         const inputNombre = document.getElementById('input-nombre');
         const inputPrecio = document.getElementById('input-precio');
-        const inputImagen = document.getElementById('input-imagen-file');
 
-        const nombre = sanitizarHTML(inputNombre?.value.trim());
+        const nombre = inputNombre?.value.trim();
         const precio = parseFloat(inputPrecio?.value);
         const archivo = inputImagen?.files[0];
 
         if (!nombre || isNaN(precio) || !archivo) {
-            alert("Por favor completa el nombre, precio y selecciona o toma una foto.");
+            alert("Por favor completa el nombre, el precio y selecciona una imagen.");
             return;
         }
 
         try {
             alternarCargando(true);
-            // 1. Subir imagen
             const urlImagen = await subirFotoImgBB(archivo);
 
-            // 2. Guardar en Firestore
             await db.collection('productos').add({
                 nombre: nombre,
                 precio: precio,
@@ -225,8 +303,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             alert("¡Producto publicado correctamente!");
             formProducto.reset();
-            panelAdmin?.classList.add('hidden');
-            await cargarCatalogo(); // Recargar cuadrícula
+            if (labelImagen) labelImagen.textContent = "📸 Seleccionar foto";
+            panelAdmin?.classList.remove('open');
+            await cargarCatalogo();
         } catch (err) {
             console.error("Error al publicar:", err);
             alert("Error al guardar el producto: " + err.message);
@@ -234,7 +313,4 @@ document.addEventListener('DOMContentLoaded', () => {
             alternarCargando(false);
         }
     });
-
-    // 3. Cargar catálogo inicial
-    cargarCatalogo();
 });
