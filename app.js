@@ -22,7 +22,7 @@ const auth = firebase.auth();
 
 // Constantes
 const ADMIN_EMAIL = "5493725401808@begus.internal";
-const IMGBB_API_KEY = "8b1e7ee85535999790ddf28a341c8927"; // Nueva clave insertada
+const IMGBB_API_KEY = "8b1e7ee85535999790ddf28a341c8927"; 
 const WHATSAPP_NUMBER = "5493725401808";
 
 let esAdmin = false;
@@ -44,33 +44,68 @@ function alternarCargando(mostrar) {
     }
 }
 
+// Subida Gratuita de Fotos a ImgBB
+async function subirFotoImgBB(file) {
+    const maxMB = 10;
+    if (file.size > maxMB * 1024 * 1024) {
+        throw new Error(`La foto es muy pesada. Intenta con una de menos de ${maxMB} MB.`);
+    }
+
+    const formData = new FormData();
+    formData.append('image', file);
+    formData.append('key', IMGBB_API_KEY); 
+
+    try {
+        const response = await fetch('https://api.imgbb.com/1/upload', {
+            method: 'POST',
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            return result.data.url;
+        } else {
+            throw new Error(result.error?.message || "Respuesta rechazada por la API");
+        }
+    } catch (err) {
+        console.error("[ImgBB Upload Error]:", err);
+        throw new Error(err.message || "Error de red al conectar con ImgBB.");
+    }
+}
+
 // Cargar Catálogo desde Firestore
 async function cargarCatalogo() {
     alternarCargando(true);
     const grid = document.getElementById('grid-productos');
 
     try {
-        const snapshot = await db.collection('productos').get();
+        const snapshot = await db.collection('productos').orderBy('creadoEn', 'desc').get();
         if (!grid) return;
 
         grid.innerHTML = '';
 
         if (snapshot.empty) {
-            grid.innerHTML = '<p style="grid-column: 1/-1; text-align:center; padding: 2rem;">No hay productos publicados en el catálogo.</p>';
+            grid.innerHTML = '<p style="grid-column: 1/-1; text-align:center; padding: 2rem;">No hay productos publicados.</p>';
         } else {
             snapshot.forEach(doc => {
                 const item = doc.data();
                 const tarjeta = document.createElement('article');
                 tarjeta.className = 'product-card';
                 
-                let botonBorrar = esAdmin 
-                    ? `<button class="btn-del" onclick="eliminarProducto('${doc.id}')" title="Eliminar">🗑️</button>` 
+                // Botonera de administrador (Estilo de capsula blanca arriba a la derecha)
+                let botoneraAdmin = esAdmin 
+                    ? `<div class="admin-actions" style="position: absolute; top: 10px; right: 10px; background: rgba(255, 255, 255, 0.9); padding: 5px 10px; border-radius: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); display: flex; gap: 10px;">
+                            <button onclick="compartirProducto('${sanitizarHTML(item.nombre)}', ${item.precio}, '${sanitizarHTML(item.imagenUrl)}')" style="background:none; border:none; cursor:pointer; font-size:16px;" title="Compartir en Redes">🔗</button>
+                            <button onclick="abrirModalEditar('${doc.id}', '${sanitizarHTML(item.nombre)}', ${item.precio}, '${sanitizarHTML(item.imagenUrl)}')" style="background:none; border:none; cursor:pointer; font-size:16px;" title="Editar">✏️</button>
+                            <button onclick="eliminarProducto('${doc.id}')" style="background:none; border:none; cursor:pointer; font-size:16px;" title="Eliminar">🗑️</button>
+                       </div>` 
                     : '';
 
                 tarjeta.innerHTML = `
                     <div style="position: relative;">
                         <img src="${sanitizarHTML(item.imagenUrl)}" alt="${sanitizarHTML(item.nombre)}" class="product-img" loading="lazy">
-                        ${botonBorrar ? `<div class="admin-actions">${botonBorrar}</div>` : ''}
+                        ${botoneraAdmin}
                     </div>
                     <div class="product-info">
                         <h3 class="product-title">${sanitizarHTML(item.nombre)}</h3>
@@ -83,67 +118,71 @@ async function cargarCatalogo() {
         }
     } catch (error) {
         console.error("Error al cargar productos:", error);
-        if (grid) {
-            grid.innerHTML = `<p style="grid-column: 1/-1; color: #ff4d4d; text-align: center;">Error al cargar el catálogo: ${error.message}</p>`;
-        }
     } finally {
         alternarCargando(false);
     }
 }
 
-// Autenticación de Administrador
-async function solicitarAccesoAdmin() {
-    if (esAdmin) {
-        document.getElementById('panel-admin')?.classList.add('open');
-        return;
-    }
+// -------------------------------------------------------------
+// FUNCIONES DE ADMINISTRACIÓN: COMPARTIR, EDITAR Y ELIMINAR
+// -------------------------------------------------------------
 
-    const claveIngresada = prompt("Ingrese la contraseña de administración:");
-    if (!claveIngresada) return;
+// Función Mágica para Compartir en Estados, Grupos, Historias o WhatsApp
+async function compartirProducto(nombre, precio, imagenUrl) {
+    const urlCatalogo = window.location.href.split('#')[0]; 
+    const textoConsulta = `Hola! Quiero consultar por: ${nombre}`;
+    const linkWhatsApp = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(textoConsulta)}`;
+    
+    // El texto que acompañará la publicación
+    const textoFijo = `¡Mirá este producto en Begus!\n\n🛍️ ${nombre}\n💰 $${precio.toLocaleString('es-AR')}\n\n📲 Consultá acá: ${linkWhatsApp}\n🌐 Catálogo: ${urlCatalogo}`;
 
-    try {
-        alternarCargando(true);
-        await auth.signInWithEmailAndPassword(ADMIN_EMAIL, claveIngresada.trim());
-        alert("Autenticación exitosa.");
-    } catch (error) {
-        console.error("Error Auth:", error);
-        alert("Credenciales inválidas o error de conexión.");
-    } finally {
-        alternarCargando(false);
+    if (navigator.share) {
+        try {
+            // Intentamos descargar la imagen para que se adjunte visualmente en Estados de WA o IG
+            const response = await fetch(imagenUrl);
+            const blob = await response.blob();
+            const file = new File([blob], 'producto.jpg', { type: blob.type });
+
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                await navigator.share({
+                    title: 'Begus - ' + nombre,
+                    text: textoFijo,
+                    files: [file]
+                });
+                return;
+            }
+        } catch (err) {
+            console.warn("CORS evitó descargar la imagen. Compartiendo enlace...");
+        }
+
+        // Si falla la descarga visual, igual abre las redes pero manda el link de la foto
+        try {
+            await navigator.share({
+                title: 'Begus - ' + nombre,
+                text: textoFijo + `\n🖼️ Imagen: ${imagenUrl}`
+            });
+        } catch (e) {
+            console.log("Se canceló compartir");
+        }
+    } else {
+        // En PC copia todo al portapapeles
+        navigator.clipboard.writeText(textoFijo + `\n🖼️ Imagen: ${imagenUrl}`);
+        alert("Texto y enlaces copiados al portapapeles. Pégalos en tu Muro o WhatsApp Web.");
     }
 }
 
-// Subida Gratuita de Fotos a ImgBB con control de errores detallado
-async function subirFotoImgBB(file) {
-    // 1. Validar tamaño máximo (ImgBB acepta hasta 32 MB en API, pero limitamos a 10 MB por rendimiento)
-    const maxMB = 10;
-    if (file.size > maxMB * 1024 * 1024) {
-        throw new Error(`La foto es muy pesada (${(file.size / (1024 * 1024)).toFixed(1)} MB). Intenta con una de menos de ${maxMB} MB.`);
-    }
-
-    const formData = new FormData();
-    formData.append('image', file);
-    formData.append('key', IMGBB_API_KEY); // Añadimos la clave directamente al formulario
-
-    try {
-        // Hacemos el POST sin parámetros raros en la URL
-        const response = await fetch('https://api.imgbb.com/1/upload', {
-            method: 'POST',
-            body: formData
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
-            return result.data.url;
-        } else {
-            const detalle = result.error?.message || "Respuesta rechazada por la API";
-            throw new Error(`ImgBB rechazó la imagen: ${detalle}`);
-        }
-    } catch (err) {
-        console.error("[ImgBB Upload Error]:", err);
-        throw new Error(err.message || "Error de red al conectar con ImgBB.");
-    }
+// Preparar y abrir el modal de Edición
+function abrirModalEditar(id, nombre, precio, imagenUrl) {
+    document.getElementById('edit-id').value = id;
+    document.getElementById('edit-input-nombre').value = nombre;
+    document.getElementById('edit-input-precio').value = precio;
+    document.getElementById('edit-imagen-actual').value = imagenUrl;
+    document.getElementById('edit-preview-img').src = imagenUrl;
+    
+    document.getElementById('edit-label-imagen').textContent = "📸 Cambiar foto (opcional)";
+    document.getElementById('edit-input-imagen').value = ""; // Limpiar el input file
+    
+    document.getElementById('modal-editar').classList.add('open');
 }
 
 // Eliminar producto
@@ -162,25 +201,22 @@ async function eliminarProducto(id) {
     }
 }
 
-// Lógica del Carrito
+// -------------------------------------------------------------
+// LÓGICA DEL CARRITO Y AUTH (Mantenida igual)
+// -------------------------------------------------------------
+
 function agregarAlCarrito(id, nombre, precio) {
     const existe = carrito.find(item => item.id === id);
-    if (existe) {
-        existe.cantidad += 1;
-    } else {
-        carrito.push({ id, nombre, precio, cantidad: 1 });
-    }
+    if (existe) existe.cantidad += 1;
+    else carrito.push({ id, nombre, precio, cantidad: 1 });
     actualizarCarritoUI();
 }
 
 function cambiarCantidad(id, cambio) {
     const item = carrito.find(i => i.id === id);
     if (!item) return;
-
     item.cantidad += cambio;
-    if (item.cantidad <= 0) {
-        carrito = carrito.filter(i => i.id !== id);
-    }
+    if (item.cantidad <= 0) carrito = carrito.filter(i => i.id !== id);
     actualizarCarritoUI();
 }
 
@@ -188,7 +224,6 @@ function actualizarCarritoUI() {
     const countEl = document.getElementById('cart-count');
     const itemsEl = document.getElementById('cart-items');
     const totalEl = document.getElementById('cart-total-price');
-
     const totalItems = carrito.reduce((acc, item) => acc + item.cantidad, 0);
     const totalPrecio = carrito.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
 
@@ -221,30 +256,39 @@ function actualizarCarritoUI() {
 }
 
 function enviarPedidoWhatsApp() {
-    if (carrito.length === 0) {
-        alert("El carrito está vacío.");
-        return;
-    }
-
+    if (carrito.length === 0) return alert("El carrito está vacío.");
     let mensaje = "Hola! Quisiera realizar el siguiente pedido:\n\n";
     let total = 0;
-
     carrito.forEach(item => {
         const subtotal = item.precio * item.cantidad;
         total += subtotal;
         mensaje += `• ${item.nombre} x${item.cantidad} - $${subtotal.toLocaleString('es-AR')}\n`;
     });
-
     mensaje += `\n*Total: $${total.toLocaleString('es-AR')}*`;
-    const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(mensaje)}`;
-    window.open(url, '_blank');
+    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(mensaje)}`, '_blank');
 }
 
-// Estado de Sesión en Firebase
+async function solicitarAccesoAdmin() {
+    if (esAdmin) {
+        document.getElementById('panel-admin')?.classList.add('open');
+        return;
+    }
+    const claveIngresada = prompt("Ingrese la contraseña de administración:");
+    if (!claveIngresada) return;
+    try {
+        alternarCargando(true);
+        await auth.signInWithEmailAndPassword(ADMIN_EMAIL, claveIngresada.trim());
+        alert("Autenticación exitosa.");
+    } catch (error) {
+        alert("Credenciales inválidas.");
+    } finally {
+        alternarCargando(false);
+    }
+}
+
 auth.onAuthStateChanged((user) => {
     const btnAbrirAdmin = document.getElementById('btn-abrir-admin');
     const panelAdmin = document.getElementById('panel-admin');
-
     if (user && user.email === ADMIN_EMAIL) {
         esAdmin = true;
         if (btnAbrirAdmin) btnAbrirAdmin.textContent = "⚙️ Panel Admin";
@@ -259,81 +303,97 @@ auth.onAuthStateChanged((user) => {
 
 // Inicialización de Eventos DOM
 document.addEventListener('DOMContentLoaded', () => {
-    const btnAbrirAdmin = document.getElementById('btn-abrir-admin');
-    const btnCerrarAdmin = document.getElementById('btn-cerrar-admin');
-    const panelAdmin = document.getElementById('panel-admin');
-    const formProducto = document.getElementById('form-producto');
+    document.getElementById('btn-abrir-admin')?.addEventListener('click', solicitarAccesoAdmin);
+    document.getElementById('btn-cerrar-admin')?.addEventListener('click', () => document.getElementById('panel-admin').classList.remove('open'));
+    document.getElementById('btn-carrito-flotante')?.addEventListener('click', () => document.getElementById('modal-carrito').classList.add('open'));
+    document.getElementById('btn-cerrar-carrito')?.addEventListener('click', () => document.getElementById('modal-carrito').classList.remove('open'));
+    document.getElementById('btn-enviar-pedido-wa')?.addEventListener('click', enviarPedidoWhatsApp);
+    
+    // Cierre del modal de edición
+    document.getElementById('btn-cerrar-editar')?.addEventListener('click', () => document.getElementById('modal-editar').classList.remove('open'));
+
+    document.getElementById('btn-cerrar-sesion')?.addEventListener('click', () => {
+        auth.signOut().then(() => alert("Sesión cerrada."));
+    });
+
+    // Etiquetas de fotos (Nuevo producto)
     const inputImagen = document.getElementById('input-imagen-file');
     const labelImagen = document.getElementById('label-imagen');
-
-    const btnCarrito = document.getElementById('btn-carrito-flotante');
-    const btnCerrarCarrito = document.getElementById('btn-cerrar-carrito');
-    const modalCarrito = document.getElementById('modal-carrito');
-    const btnEnviarWA = document.getElementById('btn-enviar-pedido-wa');
-    const btnCerrarSesion = document.getElementById('btn-cerrar-sesion');
-
-    btnAbrirAdmin?.addEventListener('click', solicitarAccesoAdmin);
-    btnCerrarAdmin?.addEventListener('click', () => panelAdmin?.classList.remove('open'));
-
-    btnCarrito?.addEventListener('click', () => modalCarrito?.classList.add('open'));
-    btnCerrarCarrito?.addEventListener('click', () => modalCarrito?.classList.remove('open'));
-    btnEnviarWA?.addEventListener('click', enviarPedidoWhatsApp);
-
-    // Evento para cerrar la sesión de administrador
-    btnCerrarSesion?.addEventListener('click', () => {
-        auth.signOut().then(() => {
-            alert("Sesión de administrador cerrada exitosamente.");
-        }).catch((error) => {
-            console.error("Error al cerrar sesión:", error);
-        });
-    });
-
     inputImagen?.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file && labelImagen) {
-            labelImagen.textContent = `📷 ${file.name}`;
-        }
+        if (e.target.files[0] && labelImagen) labelImagen.textContent = `📷 ${e.target.files[0].name}`;
     });
 
-    formProducto?.addEventListener('submit', async (e) => {
+    // Etiquetas de fotos (Editar producto)
+    const editInputImagen = document.getElementById('edit-input-imagen');
+    const editLabelImagen = document.getElementById('edit-label-imagen');
+    editInputImagen?.addEventListener('change', (e) => {
+        if (e.target.files[0] && editLabelImagen) editLabelImagen.textContent = `📷 ${e.target.files[0].name}`;
+    });
+
+    // Formulario de Agregar
+    document.getElementById('form-producto')?.addEventListener('submit', async (e) => {
         e.preventDefault();
+        if (!esAdmin) return alert("Debes iniciar sesión.");
+        
+        const nombre = document.getElementById('input-nombre').value.trim();
+        const precio = parseFloat(document.getElementById('input-precio').value);
+        const archivo = document.getElementById('input-imagen-file').files[0];
 
-        if (!esAdmin) {
-            alert("Debes iniciar sesión como administrador.");
-            return;
-        }
-
-        const inputNombre = document.getElementById('input-nombre');
-        const inputPrecio = document.getElementById('input-precio');
-
-        const nombre = inputNombre?.value.trim();
-        const precio = parseFloat(inputPrecio?.value);
-        const archivo = inputImagen?.files[0];
-
-        if (!nombre || isNaN(precio) || !archivo) {
-            alert("Por favor completa el nombre, el precio y selecciona una imagen.");
-            return;
-        }
+        if (!nombre || isNaN(precio) || !archivo) return alert("Completa todos los campos.");
 
         try {
             alternarCargando(true);
             const urlImagen = await subirFotoImgBB(archivo);
-
             await db.collection('productos').add({
                 nombre: nombre,
                 precio: precio,
                 imagenUrl: urlImagen,
                 creadoEn: firebase.firestore.FieldValue.serverTimestamp()
             });
-
-            alert("¡Producto publicado correctamente!");
-            formProducto.reset();
+            alert("¡Producto publicado!");
+            e.target.reset();
             if (labelImagen) labelImagen.textContent = "📸 Seleccionar foto";
-            panelAdmin?.classList.remove('open');
+            document.getElementById('panel-admin').classList.remove('open');
             await cargarCatalogo();
         } catch (err) {
-            console.error("Error al publicar:", err);
-            alert("Error al guardar el producto: " + err.message);
+            alert("Error al guardar: " + err.message);
+        } finally {
+            alternarCargando(false);
+        }
+    });
+
+    // Formulario de Editar
+    document.getElementById('form-editar-producto')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!esAdmin) return;
+        
+        const id = document.getElementById('edit-id').value;
+        const nombre = document.getElementById('edit-input-nombre').value.trim();
+        const precio = parseFloat(document.getElementById('edit-input-precio').value);
+        const archivo = document.getElementById('edit-input-imagen').files[0];
+        const imagenActual = document.getElementById('edit-imagen-actual').value;
+
+        try {
+            alternarCargando(true);
+            let urlImagen = imagenActual;
+
+            // Si seleccionó una foto nueva, la sube a ImgBB reemplazando la vieja
+            if (archivo) {
+                urlImagen = await subirFotoImgBB(archivo);
+            }
+
+            // Actualiza en base de datos
+            await db.collection('productos').doc(id).update({
+                nombre: nombre,
+                precio: precio,
+                imagenUrl: urlImagen
+            });
+
+            alert("¡Producto actualizado!");
+            document.getElementById('modal-editar').classList.remove('open');
+            await cargarCatalogo();
+        } catch (err) {
+            alert("Error al editar: " + err.message);
         } finally {
             alternarCargando(false);
         }
