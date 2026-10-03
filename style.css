@@ -127,6 +127,7 @@ body {
     flex: 0 0 82vw;
     max-width: 340px;
     min-width: 260px;
+    height: 420px; /* <--- Agregá o modificá este valor para controlar la altura total */
     scroll-snap-align: center;
     background-color: var(--card-bg);
     backdrop-filter: blur(8px);
