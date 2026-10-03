@@ -86,7 +86,7 @@ async function cargarCatalogo() {
         grid.innerHTML = '';
 
         if (snapshot.empty) {
-            grid.innerHTML = '<p style="grid-column: 1/-1; text-align:center; padding: 2rem;">No hay productos publicados.</p>';
+            grid.innerHTML = '<p style="text-align:center; padding: 2rem; width: 100%;">No hay productos publicados.</p>';
         } else {
             snapshot.forEach(doc => {
                 const item = doc.data();
@@ -202,7 +202,7 @@ async function eliminarProducto(id) {
 }
 
 // -------------------------------------------------------------
-// LÓGICA DEL CARRITO Y AUTH (Mantenida igual)
+// LÓGICA DEL CARRITO Y AUTH
 // -------------------------------------------------------------
 
 function agregarAlCarrito(id, nombre, precio) {
